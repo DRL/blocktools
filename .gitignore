@@ -1,0 +1,13 @@
+.DS_Store
+.cache
+.coverage
+*.egg-info
+build
+dist
+test*
+real*
+tiny*
+A*
+B*
+Hmel*
+.DS_Store
