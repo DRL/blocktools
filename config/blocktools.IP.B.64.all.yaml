@@ -1,0 +1,15 @@
+args: {
+  '--algorithm' : 'B',
+  '--block_length' : 64,
+  '--min_interval_len' : 1,
+  '--max_interval_distance' : 80,
+  '--vcf' : '/scratch/dlaetsch/blocktools_IP/input/IPODA.haplome.v1_1.parallel.filtered.vcf.gz',
+  '--multibed' : '/scratch/dlaetsch/blocktools_IP/input/IPODA.haplome.v1_1.multiinter.all_good.bed',
+  '--genome' :  '/scratch/dlaetsch/blocktools_IP/input/IPODA.haplome.v1_1.fasta.genomefile',
+  '--outprefix' : '/scratch/dlaetsch/blocktools_IP/output/blocktools.IP.B.64.all',
+  '--threads' : 60,
+  '--populations' : {
+                "I_feisthamelii": ['IF_RVcoll17B439','IF_RVcoll14B411','IF_165','IF_RVcoll11F366','IF_RVcoll12N508'], 
+                "I_podalirius": ['IP_RVcoll14H960','IP504','IP_502','IP_RVcoll14F754','IP_RVcoll14E561','IP_RVcoll12R048']
+              }
+}
