@@ -700,8 +700,8 @@ def parse_multibed_f(parameterObj, sequence_OrdDict):
             coverageObj.add_sample_region_block_size(sample_count, int(length / parameterObj.block_length) * parameterObj.block_length)
     if regionBatchObj.contig_id:
         regionBatchObjs.append(regionBatchObj)
-    for x in regionBatchObjs:
-        print(x)
+    #for x in regionBatchObjs:
+    #    print(x)
         #for y in x.bedObjs:
         #    print(y)
 
