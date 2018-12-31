@@ -1631,8 +1631,8 @@ class WindowDataObj(object):
             sample_covs = []
             data_window_sfs_tally[window_id] = dict(windowObj.sfs_tally)
             for sample_id in parameterObj.sample_ids:
-                sample_idx = parameterObj.sample_idx_by_sample_id[sample_id]
-                sample_covs.append("%.2f" % (windowObj.cov_by_sample_idx.get(sample_idx, 0) / parameterObj.window_size))
+                _sample_idx = parameterObj.sample_idx_by_sample_id[sample_id]
+                sample_covs.append("%.2f" % (windowObj.cov_by_sample_idx.get(_sample_idx, 0) / parameterObj.window_size))
             data_window_metrics_tsv.append( \
                 "%s" % "\t".join([\
                     window_id, \
