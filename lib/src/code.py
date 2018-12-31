@@ -1116,7 +1116,6 @@ def transform_coordinates(parameterObj, blockDataObj, coordinateTransformObj):
 
 def transform_coordinates_blockObj(params):
     blockObj, coordinateTransformObj = params
-    #print(blockObj)
     #print(">", blockObj.contig_id, blockObj.start, blockObj.end)
     _contig_id, _start, _end = coordinateTransformObj.transform_coordinates(blockObj.contig_id, int(blockObj.start), int(blockObj.end))
     #print("<", _contig_id, _start, _end)
