@@ -677,6 +677,7 @@ def parse_multibed_f(parameterObj, sequence_OrdDict):
     coverageObj = CoverageObj()
     coverageObj.set_genome_length(sequence_OrdDict)
     for chrom, start, end, samples, length, sample_idxs, pair_idxs, distance in tqdm(df.values.tolist(), total=len(df.index), desc="[%] ", ncols=200):
+        print(chrom, start, end, samples, length, sample_idxs, pair_idxs, distance)
         if not pair_idxs is numpy.nan:
             pair_count = len(pair_idxs)
             coverageObj.add_pair_region(pair_count, length)
