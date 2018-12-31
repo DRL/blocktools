@@ -25,10 +25,10 @@ def task_parse_genome_f(parameterObj):
     print("[+] Read %s sequences in %.3fs (%.2fMB)" % (len(sequence_OrdDict), timer() - start, memory_usage_psutil()))
     return sequence_OrdDict
 
-def task_plot_block_span_tsv(parameterObj, sequence_OrdDict):
+def task_plot_coverage(parameterObj, sequence_OrdDict):
     start = timer()
     print("[#] Parsing %s ..." % parameterObj.block_pairs_f)
-    fn_block_span_tsv = plot_block_span_tsv(parameterObj, sequence_OrdDict)
+    fn_block_span_tsv = plot_coverage(parameterObj, sequence_OrdDict)
     print("[+] Wrote '%s' in %.3fs (%.2fMB)" % (fn_block_span_tsv, timer() - start, memory_usage_psutil()))
 
 def task_plot_window_coverage_tsv(parameterObj, sequence_OrdDict):
@@ -49,14 +49,20 @@ def task_plot_window_variant_tsv(parameterObj, sequence_OrdDict):
     dxy_fst_fn, piA_piB_fn, tuple_fn = plot_window_variant_tsv(parameterObj, sequence_OrdDict)
     print("[+] Wrote \n\t'%s' and \n\t'%s' and \n\t'%s' in %.3fs (%.2fMB)" % (dxy_fst_fn, piA_piB_fn, tuple_fn, timer() - start, memory_usage_psutil()))
 
+def task_plot_scatter_windows(parameterObj, sequence_OrdDict):
+    start = timer()
+    print("[#] Parsing %s ..." % parameterObj.window_variant_tsv_f)
+    plot_scatter_windows(parameterObj, sequence_OrdDict)
+    #print("[+] Wrote \n\t'%s' and \n\t'%s' and \n\t'%s' in %.3fs (%.2fMB)" % (dxy_fst_fn, piA_piB_fn, tuple_fn, timer() - start, memory_usage_psutil()))
+
 def main():
     start_time = timer()
     args = docopt(__doc__)
     parameterObj = task_parse_parameters(args)
     sequence_OrdDict = task_parse_genome_f(parameterObj)
-    task_plot_block_span_tsv(parameterObj, sequence_OrdDict)
-    task_plot_window_coverage_tsv(parameterObj, sequence_OrdDict)
+    task_plot_coverage(parameterObj, sequence_OrdDict)
     task_plot_variant_pairs_tsv(parameterObj, sequence_OrdDict)
+    task_plot_window_coverage_tsv(parameterObj, sequence_OrdDict)
     task_plot_window_variant_tsv(parameterObj, sequence_OrdDict)
     print("[+] Total runtime: %.3fs" % (timer() - start_time))
 
