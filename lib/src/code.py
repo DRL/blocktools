@@ -833,11 +833,10 @@ def generate_pair_idxs(sample_string, **kwargs):
         return numpy.nan
 
 def generate_sample_idxs(sample_string, **kwargs):
-    sample_idxs = frozenset([kwargs['sample_idx_by_sample_id'][sample_id] for sample_id in sample_string.split(",") if sample_id in kwargs['sample_idx_by_sample_id']])
-    if sample_idxs:
-        return sample_idxs
+    if "," in sample_string:
+        return frozenset([kwargs['sample_idx_by_sample_id'][sample_id] for sample_id in sample_string.split(",") if sample_id in kwargs['sample_idx_by_sample_id']])
     else:
-        return numpy.nan
+        return sample_string
 
 def make_blocks(parameterObj, regionBatchObjs):
     if parameterObj.algorithm == "A":
