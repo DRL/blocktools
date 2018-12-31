@@ -4,7 +4,7 @@ args: {
   '--min_interval_len' : 64,
   '--max_interval_distance' : 80,
   '--vcf' : '/scratch/dlaetsch/blocktools_IP/input/IPODA.haplome.v1_1.parallel.filtered.vcf.gz',
-  '--multibed' : '/scratch/dlaetsch/blocktools_IP/input/IPODA.haplome.v1_1.multiinter.genic_good.bed',
+  '--multibed' : '/scratch/dlaetsch/blocktools_IP/input/IPODA.haplome.v1_1.callable.genic.bed',
   '--genome' :  '/scratch/dlaetsch/blocktools_IP/input/IPODA.haplome.v1_1.fasta.genomefile',
   '--outprefix' : '/scratch/dlaetsch/blocktools_IP/output/blocktools.IP.A.64.genic',
   '--threads' : 60,
