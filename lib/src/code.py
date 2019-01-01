@@ -694,7 +694,7 @@ def parse_multibed_f(parameterObj, sequence_OrdDict):
                     regionBatchObj = RegionBatchObj(idx)
                     regionBatchObj.add_bedObj_to_batch(bedObj)
             #if numpy.isnan(distance) or int(distance) > parameterObj.max_interval_distance:
-        print(chrom, start, end, samples, length, sample_idxs, pair_idxs, distance)
+        
         sample_count = len(sample_idxs)
         coverageObj.add_sample_region(sample_count, length)
         if length >= parameterObj.block_length:
