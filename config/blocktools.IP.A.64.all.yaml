@@ -9,7 +9,7 @@ args: {
   '--outprefix' : '/scratch/dlaetsch/blocktools_IP/output/blocktools.IP.A.64.all',
   '--threads' : 60,
   '--populations' : {
-                "I_feisthamelii": ['IF_RVcoll17B439','IF_RVcoll14B411','IF_165','IF_RVcoll11F366','IF_RVcoll12N508'], 
+                "I_feisthamelii": ['IF_RVcoll17B439','IF_RVcoll14B411','IF_165','IF_236','IF_RVcoll11F366','IF_RVcoll12N508'], 
                 "I_podalirius": ['IP_RVcoll14H960','IP504','IP_502','IP_RVcoll14F754','IP_RVcoll14E561','IP_RVcoll12R048']
               }
 }
