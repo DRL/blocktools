@@ -4,7 +4,7 @@ args: {
   '--min_interval_len' : 64,
   '--max_interval_distance' : 80,
   '--vcf' : '/scratch/dlaetsch/blocktools_IP/input/ros10_chi10.DP8MIN2MAC1.vcf.gz',
-  '--multibed' : '/scratch/dlaetsch/blocktools_IP/input/hmel.multiinter.samples_as_string.only_intergenic.bed',
+  '--multibed' : '/scratch/dlaetsch/blocktools_IP/input/hmel.multiinter.samples_as_string.only_intergenic.all_samples.bed',
   '--genome' :  '/scratch/dlaetsch/blocktools_IP/input/hmel.autosomes.genomefile',
   '--outprefix' : '/scratch/dlaetsch/blocktools_IP/output/blocktools.HMEL.allCallable.64.intergenic',
   '--threads' : 60,
