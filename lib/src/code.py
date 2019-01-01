@@ -487,23 +487,27 @@ class PlotGenomeObj():
                         axarr.set(ylabel = column_id)
                     elif self.subplots:
                         colour = 'grey' if i % 2 else 'black'
-                        x_smooth = numpy.linspace(min(x), max(x), floor(len(x) * 0.05))
-                        order = 2 # smoothness order
-                        s = BSpline(x, y, order)
-                        y_smooth = s(x_smooth)
-                        axarr[idx].plot(x_smooth, y_smooth, color=colour, alpha=0.5, marker='o', markersize=0, linewidth=1)
+                        if len(y) > 10:
+                            x_smooth = numpy.linspace(min(x), max(x), floor(len(x) * 0.05) + 5)
+                            order = 2 # smoothness order
+                            
+                            s = BSpline(x, y, order)
+                            y_smooth = s(x_smooth)
+                            axarr[idx].plot(x_smooth, y_smooth, color=colour, alpha=0.5, marker='o', markersize=0, linewidth=1)
                         axarr[idx].plot(x, y, color=colour, alpha=1, marker='o', markersize=0.2, linewidth=0)
                         axarr[idx].vlines(x_boundaries, 0, max_y, colors=['lightgrey'], linestyles='dashed')
                         axarr[idx].set(ylabel = column_id)
                     else:
                         colour = self.cm(idx / len(column_ids))
-                        x_smooth = numpy.linspace(min(x), max(x), floor(len(x) * 0.05))
-                        order = 2 # smoothness order
-                        s = BSpline(x, y, order)
-                        y_smooth = s(x_smooth)
+                        if len(y) > 10:
+                            x_smooth = numpy.linspace(min(x), max(x), floor(len(x) * 0.05) + 5)
+                            
+                            order = 2 # smoothness order
+                            s = BSpline(x, y, order)
+                            y_smooth = s(x_smooth)
                         #y_smooth = spline(x, y, x_smooth)
                         #alpha = 0.5 if i % 2 else 0.8
-                        axarr.plot(x_smooth, y_smooth, label=column_id, color=colour, alpha=0.8, marker='o', markersize=0.5, linewidth=1)
+                            axarr.plot(x_smooth, y_smooth, label=column_id, color=colour, alpha=0.8, marker='o', markersize=0.5, linewidth=1)
                         axarr.plot(x, y, color=colour, alpha=1, marker='o', markersize=0.2, linewidth=0)
                         axarr.vlines(x_boundaries, 0, max_y, colors=['lightgrey'], linestyles='dashed', linewidth=1)
                         axarr.set(ylabel = column_id)
@@ -682,18 +686,19 @@ def parse_multibed_f(parameterObj, sequence_OrdDict):
             coverageObj.add_pair_region(pair_count, length)
             if length >= parameterObj.block_length:
                 coverageObj.add_pair_region_block_size(pair_count, int(length / parameterObj.block_length) * parameterObj.block_length)
-            bedObj = BedObj(chrom, start, end, pair_idxs, length) 
-            if not regionBatchObj.contig_id:
-                regionBatchObj.add_bedObj_to_batch(bedObj)
-            else:
-                if chrom == regionBatchObj.contig_id and not numpy.isnan(distance) and int(distance) <= parameterObj.max_interval_distance:
+            if length >= parameterObj.min_interval_len:
+                bedObj = BedObj(chrom, start, end, pair_idxs, length) 
+                if not regionBatchObj.contig_id:
                     regionBatchObj.add_bedObj_to_batch(bedObj)
                 else:
-                    regionBatchObjs.append(regionBatchObj)
-                    idx += 1
-                    regionBatchObj = RegionBatchObj(idx)
-                    regionBatchObj.add_bedObj_to_batch(bedObj)
-            #if numpy.isnan(distance) or int(distance) > parameterObj.max_interval_distance:
+                    if chrom == regionBatchObj.contig_id and not numpy.isnan(distance) and int(distance) <= parameterObj.max_interval_distance:
+                        regionBatchObj.add_bedObj_to_batch(bedObj)
+                    else:
+                        regionBatchObjs.append(regionBatchObj)
+                        idx += 1
+                        regionBatchObj = RegionBatchObj(idx)
+                        regionBatchObj.add_bedObj_to_batch(bedObj)
+                #if numpy.isnan(distance) or int(distance) > parameterObj.max_interval_distance:
         
         sample_count = len(sample_idxs)
         coverageObj.add_sample_region(sample_count, length)
