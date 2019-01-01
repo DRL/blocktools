@@ -299,6 +299,14 @@ def plot_window_variant_tsv(parameterObj, sequence_OrdDict):
     plotScatterObj = PlotScatterObj(parameterObj, 'window_fst_vs_multiallelic', 'Proportion of bases with "multiallelic" genotypes', 'multiallelic', 'F_st across all blocks', 'f_st', df_window_fst_vs_multiallelic)
     plotScatterObj.plot(alpha=0.1, points='Window of %s blocks' % parameterObj.window_size)
 
+    df_window_piA_vs_missing = df_window_variant_tsv[['missing', 'pi_A']]
+    plotScatterObj = PlotScatterObj(parameterObj, 'window_piA_vs_missing', 'Proportion of bases with "missing" genotypes', 'missing', 'Pi_A across all blocks', 'pi_A', df_window_piA_vs_missing)
+    plotScatterObj.plot(alpha=0.1, points='Window of %s blocks' % parameterObj.window_size)
+
+    df_window_piA_vs_multiallelic = df_window_variant_tsv[['multiallelic', 'pi_A']]
+    plotScatterObj = PlotScatterObj(parameterObj, 'window_piA_vs_multiallelic', 'Proportion of bases with "multiallelic" genotypes', 'multiallelic', 'Pi_A across all blocks', 'pi_A', df_window_piA_vs_multiallelic)
+    plotScatterObj.plot(alpha=0.1, points='Window of %s blocks' % parameterObj.window_size)
+
     df_window_dxy_vs_missing = df_window_variant_tsv[['missing', 'd_xy']]
     plotScatterObj = PlotScatterObj(parameterObj, 'window_dxy_vs_missing', 'Proportion of bases with "missing" genotypes', 'missing', 'D_xy across all blocks', 'd_xy', df_window_dxy_vs_missing)
     plotScatterObj.plot(alpha=0.1, points='Window of %s blocks' % parameterObj.window_size)
@@ -679,7 +687,7 @@ def parse_multibed_f(parameterObj, sequence_OrdDict):
     regionBatchObjs = deque()
     regionBatchObj = RegionBatchObj(idx)
     coverageObj = CoverageObj()
-    coverageObj.set_genome_length(sequence_OrdDict)
+    coverageObj.set_genome_length(sequence_OrdDict) # better: record BED intervals for each contig
     for chrom, start, end, samples, length, sample_idxs, pair_idxs, distance in tqdm(df.values.tolist(), total=len(df.index), desc="[%] ", ncols=200):
         if not pair_idxs is numpy.nan:
             pair_count = len(pair_idxs)

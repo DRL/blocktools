@@ -1,0 +1,15 @@
+args: {
+  '--algorithm' : 'A',
+  '--block_length' : 64,
+  '--min_interval_len' : 64,
+  '--max_interval_distance' : 80,
+  '--vcf' : '/scratch/dlaetsch/blocktools_IP/input/real/ros10_chi10.DP8MIN2MAC1.vcf.gz',
+  '--multibed' : '/scratch/dlaetsch/blocktools_IP/input/real/hmel.multiinter.samples_as_string.only_intergenic.bed',
+  '--genome' :  '/scratch/dlaetsch/blocktools_IP/input/real/hmel.autosomes.genomefile',
+  '--outprefix' : '/scratch/dlaetsch/blocktools_IP/output/blocktools.HMEL.A.64.intergenic',
+  '--threads' : 60,
+  '--populations' : {
+                "ros": ['ros.CAM1841', 'ros.CAM1880', 'ros.CAM2045', 'ros.CAM2059', 'ros.CAM2519', 'ros.CAM2552', 'ros.CJ2071', 'ros.CJ531', 'ros.CJ533', 'ros.CJ546'], 
+                "chi": ['chi.CAM25091', 'chi.CAM25137', 'chi.CAM580', 'chi.CAM582', 'chi.CAM585', 'chi.CAM586', 'chi.CJ553', 'chi.CJ560', 'chi.CJ564', 'chi.CJ565']
+              }
+}
