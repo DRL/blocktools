@@ -1146,7 +1146,7 @@ def make_windows(parameterObj, blockDataObj):
     params = []
     # for each chrom
     for start, end in blockDataObj.blockObj_idxs:
-        print("# Length: %s from %s to %s" % (len(blockDataObj.blockObjs[start:end]), start, end))
+        #print("# Length: %s from %s to %s" % (len(blockDataObj.blockObjs[start:end]), start, end))
         chunk = parameterObj.window_size 
         if len(blockDataObj.blockObjs[start:end]) > chunk:
             init, stop = 0, 0
@@ -1154,7 +1154,7 @@ def make_windows(parameterObj, blockDataObj):
             for i in range(start, end, chunk):
                 init = i + _buffer
                 stop = i + 2 * chunk + _buffer
-                print(init, stop)
+                #print(init, stop)
                 if stop > end:
                     stop = end
                 params.append((parameterObj, blockDataObj.blockObjs[init:stop]))
@@ -1186,6 +1186,7 @@ def window_algorithm(params):
     parameterObj, blockObjs = params[0], params[1]
     for i in range(0, len(blockObjs), parameterObj.window_overlap):
         if (len(blockObjs) - i) < parameterObj.window_size:
+            print("[!] break due to short window")
             break
         else:
             windowObj = WindowObj(blockObjs[0].contig_id, blockObjs[i : i + parameterObj.window_size], parameterObj.block_length)
