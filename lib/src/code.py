@@ -1141,7 +1141,27 @@ def transform_coordinates_blockObj(params):
 def make_windows(parameterObj, blockDataObj):
     windowDataObj = WindowDataObj()
     _lol = []
-    params = [(parameterObj, blockDataObj.blockObjs[start:end]) for start, end in blockDataObj.blockObj_idxs]
+    # split big chroms further since otherwise
+
+    params = []
+    # for each chrom
+    for start, end in blockDataObj.blockObj_idxs:
+        print("# Length: %s from %s to %s" % (len(blockDataObj.blockObjs[start:end]), start, end))
+        chunk = parameterObj.window_size 
+        if len(blockDataObj.blockObjs[start:end]) > chunk:
+            init, stop = 0, 0
+            _buffer = 0
+            for i in range(start, end, chunk):
+                init = i + _buffer
+                stop = i + 2 * chunk + _buffer
+                print(init, stop)
+                if stop > end:
+                    stop = end
+                params.append((parameterObj, blockDataObj.blockObjs[init:stop]))
+                _buffer += parameterObj.window_overlap
+        else:
+            params.append((parameterObj, blockDataObj.blockObjs[start:end]))
+    print(memory_usage_psutil())
     if parameterObj.threads < 2:
         with tqdm(total=len(params), desc="[%] ", ncols=200, unit_scale=True) as pbar:
             for param in params:
@@ -1158,16 +1178,18 @@ def make_windows(parameterObj, blockDataObj):
                     pbar.update()
     flat_list = list(chain.from_iterable(_lol))
     windowDataObj.add_windowObjs(flat_list)
+    print(memory_usage_psutil())
     return windowDataObj
 
 def window_algorithm(params):
     _windowObjs = []
-    parameterObj, blockObjs = params
+    parameterObj, blockObjs = params[0], params[1]
     for i in range(0, len(blockObjs), parameterObj.window_overlap):
         if (len(blockObjs) - i) < parameterObj.window_size:
             break
         else:
             windowObj = WindowObj(blockObjs[0].contig_id, blockObjs[i : i + parameterObj.window_size], parameterObj.block_length)
+            #print(i, i + parameterObj.window_size, windowObj)
             _windowObjs.append(windowObj)
     return _windowObjs
 
@@ -1253,7 +1275,7 @@ class ParameterObj(object):
         self.coordinate_f = check_file(args.get('--coordinates', None))
         self.new_bed_f = check_file(args.get('--bed', None))
         # analysis parameters
-        self.threads = int(args['--threads']) if '--threads' in args else 1
+        self.threads = int(args['--threads']) - 1 if '--threads' in args else 1
         self.algorithm = args['--algorithm']
         self.block_length = int(args['--block_length'])
         self.min_interval_len = int(args['--min_interval_len'])
@@ -1709,6 +1731,9 @@ class WindowObj(object):
         self.cov_by_pair_idx = {}
         self.bed_tuples = []
         self.populate(blockObjs, block_length)
+
+    def __str__(self):
+        return self.window_id
 
     def populate(self, blockObjs, block_length):
         sfs_list = []
