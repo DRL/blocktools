@@ -26,6 +26,7 @@ mat.use("agg")
 import matplotlib.pyplot as plt
 import seaborn as sns
 plt.style.use('seaborn-white')
+mat.rcParams['font'] = 16
 mat.rcParams['text.color'] = 'grey'
 mat.rcParams['axes.edgecolor'] = 'lightgrey'
 mat.rcParams['xtick.color'] = 'grey'
@@ -344,7 +345,7 @@ class PlotGenomeObj():
                 axarr[idx].hlines(numpy.mean(y_list), 0, max_x, colors=['darkgrey'], linestyles='dashed', linewidth=1)
                 axarr[idx].set_ylim(min_y, max_y)
             else:
-                axarr.set_ylim(min_y, max_y)
+                axarr.set_ylim(min_y - (min_y / 100) , max_y + (max_y / 100))
         plt.tight_layout()
         if self.by_population:
             for population, colour in self.parameterObj.colour_by_population.items():
