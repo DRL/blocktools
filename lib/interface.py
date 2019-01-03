@@ -10,6 +10,7 @@ blocktools
         fixcoordinates         Relabels BED file of blocks according to coordinate file
         windows                Makes windows of blocks based on profile.tsv and    
         plot                   Makes plots
+        compare                Compare two runs
 
 
     Options:
@@ -44,6 +45,9 @@ def main():
         elif args['<module>'] == 'fixcoordinates':
             import lib.commands.fixcoordinates as fixcoordinates
             fixcoordinates.main()
+        elif args['<module>'] == 'compare':
+            import lib.commands.compare as compare
+            compare.main()
         else:
             sys.exit("%r is not a blocktools module. See 'blocktools -help'." % args['<module>'])
     except KeyboardInterrupt:

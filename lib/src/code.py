@@ -15,7 +15,7 @@ from natsort import natsorted
 #import operator
 from itertools import combinations, product, chain
 import copy
-from scipy.interpolate import BSpline
+#from scipy.interpolate import BSpline
 
 ########################### PLOT
 import matplotlib as mat
@@ -24,6 +24,7 @@ from matplotlib.ticker import MaxNLocator
 from matplotlib import cm
 mat.use("agg")
 import matplotlib.pyplot as plt
+import seaborn as sns
 plt.style.use('seaborn-white')
 mat.rcParams['text.color'] = 'grey'
 mat.rcParams['axes.edgecolor'] = 'lightgrey'
@@ -47,17 +48,15 @@ mat.rcParams['grid.color'] = 'lightgrey'
 > grep -wFf chr1_chr3.contigs.txt ../real/hmel.multiinter.samples_as_string.only_intergenic.bed > test.multiinter.samples_as_string.only_intergenic.bed
 
 [To Do]
-VCF processing tool
 
-report stats on average hetA, hetAb, hetB, fixed
+- Plot Fst of pairs in B and AllCallable
+- calculate/save/print Pi for each sample  
+
+- report stats on average hetA, hetAb, hetB, fixed
  
-- Do Fst (without scaffolding)
 - make a tree of pairwise dxy
-- run on full BED to check distro of block density
-- change block density to length
 - astral/dadi/twist/discovista
 - change algoA so that it gets invoked if BLOCKLENGTH ≥ MIN_INTERVAL_LENGTH
-- scatter plot of bases covered x dxy/ fst
 - Check how it works with 1bp blocks?
 - Check 64b, 128b
 - check difference(BED,BED_ALLCALLABLE) for how many regions covered by each
@@ -90,156 +89,9 @@ def plot_coverage(parameterObj, sequence_OrdDict):
     coverageObj.set_from_dict(coverage_dict)
     coverageObj.add_final_lengths(final_length_by_sample_count, final_length_by_pair_count)
     plotCovObj = PlotCovObj(parameterObj, 'coverage', 'Proportion of genome', coverageObj)
-    plotCovObj.plot('samples')
-    plotCovObj.plot('pairs')
+    plotCovObj.plot('samples', xlabel='Number of missing Samples', title="Proportion of genome visible when allowing for missing Samples")
+    plotCovObj.plot('pairs', xlabel='Number of missing Pairs', title="Proportion of genome visible when allowing for missing Pairs")
     return fn_block_span_tsv
-
-class PlotCovObj():
-    def __init__(self, parameterObj, name, y_label, data):
-        self.parameterObj = parameterObj
-        self.name = name
-        self.y_label = y_label
-        self.genome_length = data.genome_length
-        self.length_by_pair_count = [data.length_by_pair_count.get(idx + 1, 0.0) / self.genome_length for idx in range(self.parameterObj.pairs_count)]
-        self.block_length_by_pair_count = [data.block_length_by_pair_count.get(idx + 1, 0.0) / self.genome_length for idx in range(self.parameterObj.pairs_count)] 
-        self.final_length_by_pair_count = [data.final_length_by_pair_count.get(idx + 1, 0.0) / self.genome_length for idx in range(self.parameterObj.pairs_count)] 
-        self.length_by_sample_count = [data.length_by_sample_count.get(idx + 1, 0.0) / self.genome_length for idx in range(self.parameterObj.samples_count)] 
-        self.block_length_by_sample_count = [data.block_length_by_sample_count.get(idx + 1, 0.0) / self.genome_length for idx in range(self.parameterObj.samples_count)] 
-        self.final_length_by_sample_count = [data.final_length_by_sample_count.get(idx + 1, 0.0) / self.genome_length for idx in range(self.parameterObj.samples_count)] 
-        self.cm = plt.get_cmap('Set2')
-
-    def plot(self, grouping):
-        categories, y1, y2, y3 = None, None, None, None
-        if grouping == "samples":
-            categories = self.parameterObj.samples_count
-            y1 = self.length_by_sample_count
-            y2 = self.block_length_by_sample_count
-            y3 = self.final_length_by_sample_count
-        else:
-            categories = self.parameterObj.pairs_count
-            y1 = self.length_by_pair_count
-            y2 = self.block_length_by_pair_count
-            y3 = self.final_length_by_pair_count
-        fig = plt.figure(figsize=(16,12), dpi=400)
-        ax = fig.add_subplot(111)
-        x = [int(_x + 1) for _x in range(categories)]
-        colours = [self.cm(idx / 3) for idx in range(3)]
-        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-        ax.set_ylim((-0.05, 1))
-        ax.set_xlim((0, categories + 1))
-        #ax.set_xscale("log")
-        plt.title("Proportion of genome shared between %s" % (grouping))
-        plt.ylabel(self.y_label)
-        plt.xlabel(grouping)
-        ax.hlines(0.0, 0.0, categories + 1, linestyles='dashed', colors='lightgrey', linewidth=1)
-        ax.plot(x, y1, 'ok', label="BED Intervals (>=1 b)", color='white', markersize=4, linewidth=1, markerfacecolor=colours[0], markeredgecolor='white', markeredgewidth=1)
-        plt.legend(frameon=True)
-        fn = "%s.%s.%s.1.png" % (self.parameterObj.outprefix, self.name, grouping) 
-        fig.savefig(fn, format="png")
-        ax.plot(x, y2, 'ok', label="BED Intervals (>=64 b)", color=colours[1], markersize=4, linewidth=1, markerfacecolor=colours[1], markeredgecolor='white', markeredgewidth=1)
-        plt.legend(frameon=True)
-        fn = "%s.%s.%s.2.png" % (self.parameterObj.outprefix, self.name, grouping) 
-        fig.savefig(fn, format="png")
-        ax.plot(x, y3, '-ok', label="Blocktools (64 b)", color=colours[2], markersize=4, linewidth=1, markerfacecolor=colours[2], markeredgecolor='white', markeredgewidth=1)
-        plt.legend(frameon=True)
-        fn = "%s.%s.%s.3.png" % (self.parameterObj.outprefix, self.name, grouping) 
-        fig.savefig(fn, format="png")
-        plt.close(fig)
-        return 1
-
-def plot_window_coverage_tsv(parameterObj, sequence_OrdDict):
-    df_window_coverage_tsv = pandas.read_csv( \
-        parameterObj.window_coverage_tsv_f, \
-        sep="\t" \
-        )
-    df_window_coverage_tsv = df_window_coverage_tsv.dropna()
-    df_mean_block_density = df_window_coverage_tsv[df_window_coverage_tsv.columns[3:4].tolist()]
-    plotHistObj = PlotHistObj(parameterObj, "mean_window_density", "Value", "Count", df_mean_block_density)
-    fn_mean_block_density_hist = plotHistObj.plot()
-
-    sample_cov_df_metrics = df_window_coverage_tsv[df_window_coverage_tsv.columns[0:1].tolist() + df_window_coverage_tsv.columns[-(len(df_window_coverage_tsv.columns)-6):].tolist()]
-    plotGenomeObj = PlotGenomeObj(parameterObj, "sample_coverage", sample_cov_df_metrics, sequence_OrdDict, subplots=False, by_population=True)
-    fn_sample_cov_genome = plotGenomeObj.plot()
-    return (fn_mean_block_density_hist, fn_sample_cov_genome)
-
-def plot_variant_pairs_tsv(parameterObj, sequence_OrdDict):
-    df_variant_pairs = pandas.read_csv( \
-        parameterObj.variant_pairs_tsv_f, \
-        sep="\t" \
-        )
-    df_variant_pairs = df_variant_pairs.dropna()
-
-    df_variant_pairs_piA = df_variant_pairs[df_variant_pairs.columns[0:1].tolist() + df_variant_pairs.columns[9:10].tolist()]
-    plotHeatmapObj = PlotHeatmapObj(parameterObj, 'pi_A', 'piA (as proportion of highest value)', df_variant_pairs_piA)
-    piA_fn = plotHeatmapObj.plot()
-
-    df_variant_pairs_piB = df_variant_pairs[df_variant_pairs.columns[0:1].tolist() + df_variant_pairs.columns[10:11].tolist()]
-    plotHeatmapObj = PlotHeatmapObj(parameterObj, 'pi_B', 'piB (as proportion of highest value)', df_variant_pairs_piB)
-    piB_fn = plotHeatmapObj.plot()
-
-    df_variant_pairs_dxy = df_variant_pairs[df_variant_pairs.columns[0:1].tolist() + df_variant_pairs.columns[11:12].tolist()]
-    plotHeatmapObj = PlotHeatmapObj(parameterObj, 'd_xy', 'Dxy (as proportion of highest value)', df_variant_pairs_dxy)
-    dxy_fn = plotHeatmapObj.plot()
-
-    df_variant_pairs_fst = df_variant_pairs[df_variant_pairs.columns[0:1].tolist() + df_variant_pairs.columns[12:13].tolist()]
-    plotHeatmapObj = PlotHeatmapObj(parameterObj, 'f_st', 'Fst (as proportion of highest value)', df_variant_pairs_fst)
-    fst_fn = plotHeatmapObj.plot()
-
-    df_pair_fst_vs_bases = df_variant_pairs[df_variant_pairs.columns[2:3].tolist() + df_variant_pairs.columns[12:13].tolist()]
-    plotScatterObj = PlotScatterObj(parameterObj, 'pair_fst_vs_bases', 'Bases sampled in blocks', 'bases', 'F_st across all blocks', 'f_st', df_pair_fst_vs_bases)
-    plotScatterObj.plot(alpha=0.8, points='Pairs')
-
-    df_pair_fst_vs_missing = df_variant_pairs[['missing', 'f_st']]
-    plotScatterObj = PlotScatterObj(parameterObj, 'pair_fst_vs_missing', 'Proportion of bases with "missing" genotypes', 'missing', 'F_st across all blocks', 'f_st', df_pair_fst_vs_missing)
-    plotScatterObj.plot(alpha=0.8, points='Pairs')
-
-    df_pair_fst_vs_multiallelic = df_variant_pairs[['multiallelic', 'f_st']]
-    plotScatterObj = PlotScatterObj(parameterObj, 'pair_fst_vs_multiallelic', 'Proportion of bases with "multiallelic" genotypes', 'multiallelic', 'F_st across all blocks', 'f_st', df_pair_fst_vs_multiallelic)
-    plotScatterObj.plot(alpha=0.8, points='Pairs')
-
-    df_pair_dxy_vs_bases = df_variant_pairs[['bases', 'd_xy']]
-    plotScatterObj = PlotScatterObj(parameterObj, 'pair_dxy_vs_bases', 'Bases sampled in blocks', 'bases', 'D_xy across all blocks', 'd_xy', df_pair_dxy_vs_bases)
-    plotScatterObj.plot(alpha=0.8, points='Pairs')
-
-    df_pair_dxy_vs_missing = df_variant_pairs[['missing', 'd_xy']]
-    plotScatterObj = PlotScatterObj(parameterObj, 'pair_dxy_vs_missing', 'Proportion of bases with "missing" genotypes', 'missing', 'D_xy across all blocks', 'd_xy', df_pair_dxy_vs_missing)
-    plotScatterObj.plot(alpha=0.8, points='Pairs')
-
-    df_pair_dxy_vs_multiallelic = df_variant_pairs[['multiallelic', 'd_xy']]
-    plotScatterObj = PlotScatterObj(parameterObj, 'pair_dxy_vs_multiallelic', 'Proportion of bases with "multiallelic" genotypes', 'multiallelic', 'D_xy across all blocks', 'd_xy', df_pair_dxy_vs_multiallelic)
-    plotScatterObj.plot(alpha=0.8, points='Pairs')
-
-    df_correlation = df_variant_pairs[['bases', 'fixed', 'hetA', 'hetAB', 'hetB', 'multiallelic', 'missing', 'd_xy', 'f_st']]
-    plotCorrelationObj = PlotCorrelationObj(parameterObj, 'pair_correlation', df_correlation)
-    plotCorrelationObj.plot()
-
-    return (piA_fn, piB_fn, dxy_fn, fst_fn)
-
-class PlotCorrelationObj():
-    def __init__(self, parameterObj, name, df):
-        self.parameterObj = parameterObj
-        self.name = name
-        self.df = df
-        self.corr = df.corr()
-
-    def plot(self):
-        fig = plt.figure(figsize=(16,12), dpi=400)
-        ax = fig.add_subplot(111)
-        cax = ax.matshow(self.corr, cmap='coolwarm', vmin=-1, vmax=1)
-        fig.colorbar(cax)
-        ticks = numpy.arange(0,len(self.df.columns),1)
-        ax.set_xticks(ticks)
-        plt.xticks(rotation=90)
-        ax.set_yticks(ticks)
-        ax.grid(which='minor', color='white', linestyle='-', linewidth=2)
-        ax.set_xticklabels(self.df.columns)
-        ax.set_yticklabels(self.df.columns)
-        ax.set_frame_on(False)
-        fig.tight_layout()
-        fn = "%s.%s.png" % (self.parameterObj.outprefix, self.name) 
-        fig.savefig(fn, format="png")
-        plt.close(fig)
-        return 1
 
 class PlotScatterObj():
     def __init__(self, parameterObj, name, x_label, x_key, y_label, y_key, df):
@@ -251,7 +103,7 @@ class PlotScatterObj():
         self.y = df[y_key]
 
     def plot(self, alpha, points):
-        fig = plt.figure(figsize=(12,12), dpi=400)
+        fig = plt.figure(figsize=(12,12), dpi=400, frameon=False)
         ax = fig.add_subplot(111)
         #ax.set_ylim((-0.05, 1))
         #ax.set_xlim((0, categories + 1))
@@ -268,77 +120,34 @@ class PlotScatterObj():
         axHisty.yaxis.set_tick_params(labelleft=False)
         axHistx.hist(self.x, bins=100, color='purple')
         axHisty.hist(self.y, bins=100, color='purple', orientation='horizontal')
-        fn = "%s.%s.png" % (self.parameterObj.outprefix, self.name) 
+        fn = "%s.png" % (self.name) 
+        if self.parameterObj:
+            fn = "%s.%s.png" % (self.parameterObj.outprefix, self.name) 
         fig.savefig(fn, format="png")
         plt.close(fig)
-        
-def plot_window_variant_tsv(parameterObj, sequence_OrdDict):
-    df_window_variant_tsv = pandas.read_csv( \
-        parameterObj.window_variant_tsv_f, \
-        sep="\t" \
-        )
-    df_window_variant_tsv = df_window_variant_tsv.dropna()
+        return fn
 
-    dxy_fst_df = df_window_variant_tsv[df_window_variant_tsv.columns[0:1].tolist() + df_window_variant_tsv.columns[9:11].tolist()]
-    plotGenomeObj = PlotGenomeObj(parameterObj, "dxy_fst", dxy_fst_df, sequence_OrdDict, subplots=True, by_population=False)
-    dxy_fst_fn = plotGenomeObj.plot()
+class PlotSwarmObj():
+    def __init__(self, name, x_label, x_key, y_label, y_key, df):
+        self.name = name
+        self.y_label = y_label
+        self.x_label = x_label
+        self.x = df[x_key]
+        self.y = df[y_key]
+        self.df = df
 
-    piA_piB_df = df_window_variant_tsv[df_window_variant_tsv.columns[0:1].tolist() + df_window_variant_tsv.columns[7:9].tolist()]
-    plotGenomeObj = PlotGenomeObj(parameterObj, "piA_piB", piA_piB_df, sequence_OrdDict, subplots=True, by_population=False)
-    piA_piB_fn = plotGenomeObj.plot()
-
-    profile_df = df_window_variant_tsv[df_window_variant_tsv.columns[0:1].tolist() + df_window_variant_tsv.columns[1:7].tolist()]
-    plotGenomeObj = PlotGenomeObj(parameterObj, "tuple", profile_df, sequence_OrdDict, subplots=False, by_population=False)
-    tuple_fn = plotGenomeObj.plot()
-    
-    df_window_fst_vs_missing = df_window_variant_tsv[['missing', 'f_st']]
-    plotScatterObj = PlotScatterObj(parameterObj, 'window_fst_vs_missing', 'Proportion of bases with "missing" genotypes', 'missing', 'F_st across all blocks', 'f_st', df_window_fst_vs_missing)
-    plotScatterObj.plot(alpha=0.1, points='Window of %s blocks' % parameterObj.window_size)
-
-    df_window_fst_vs_multiallelic = df_window_variant_tsv[['multiallelic', 'f_st']]
-    plotScatterObj = PlotScatterObj(parameterObj, 'window_fst_vs_multiallelic', 'Proportion of bases with "multiallelic" genotypes', 'multiallelic', 'F_st across all blocks', 'f_st', df_window_fst_vs_multiallelic)
-    plotScatterObj.plot(alpha=0.1, points='Window of %s blocks' % parameterObj.window_size)
-
-    df_window_piA_vs_missing = df_window_variant_tsv[['missing', 'pi_A']]
-    plotScatterObj = PlotScatterObj(parameterObj, 'window_piA_vs_missing', 'Proportion of bases with "missing" genotypes', 'missing', 'Pi_A across all blocks', 'pi_A', df_window_piA_vs_missing)
-    plotScatterObj.plot(alpha=0.1, points='Window of %s blocks' % parameterObj.window_size)
-
-    df_window_piA_vs_multiallelic = df_window_variant_tsv[['multiallelic', 'pi_A']]
-    plotScatterObj = PlotScatterObj(parameterObj, 'window_piA_vs_multiallelic', 'Proportion of bases with "multiallelic" genotypes', 'multiallelic', 'Pi_A across all blocks', 'pi_A', df_window_piA_vs_multiallelic)
-    plotScatterObj.plot(alpha=0.1, points='Window of %s blocks' % parameterObj.window_size)
-
-    df_window_dxy_vs_missing = df_window_variant_tsv[['missing', 'd_xy']]
-    plotScatterObj = PlotScatterObj(parameterObj, 'window_dxy_vs_missing', 'Proportion of bases with "missing" genotypes', 'missing', 'D_xy across all blocks', 'd_xy', df_window_dxy_vs_missing)
-    plotScatterObj.plot(alpha=0.1, points='Window of %s blocks' % parameterObj.window_size)
-
-    df_window_dxy_vs_multiallelic = df_window_variant_tsv[['multiallelic', 'd_xy']]
-    plotScatterObj = PlotScatterObj(parameterObj, 'window_dxy_vs_multiallelic', 'Proportion of bases with "multiallelic" genotypes', 'multiallelic', 'D_xy across all blocks', 'd_xy', df_window_dxy_vs_multiallelic)
-    plotScatterObj.plot(alpha=0.1, points='Window of %s blocks' % parameterObj.window_size)
-
-    df_window_fixed_vs_missing = df_window_variant_tsv[['missing', 'fixed']]
-    plotScatterObj = PlotScatterObj(parameterObj, 'window_fixed_vs_missing', 'Proportion of bases with "missing" genotypes', 'missing', 'Fixed mutations across all blocks', 'fixed', df_window_fixed_vs_missing)
-    plotScatterObj.plot(alpha=0.1, points='Window of %s blocks' % parameterObj.window_size)
-
-    df_window_fixed_vs_multiallelic = df_window_variant_tsv[['multiallelic', 'fixed']]
-    plotScatterObj = PlotScatterObj(parameterObj, 'window_fixed_vs_multiallelic', 'Proportion of bases with "multiallelic" genotypes', 'multiallelic', 'Fixed mutations across all blocks', 'fixed', df_window_fixed_vs_multiallelic)
-    plotScatterObj.plot(alpha=0.1, points='Window of %s blocks' % parameterObj.window_size)
-
-    df_window_hetAB_vs_missing = df_window_variant_tsv[['missing', 'hetAB']]
-    plotScatterObj = PlotScatterObj(parameterObj, 'window_hetAB_vs_missing', 'Proportion of bases with "missing" genotypes', 'missing', 'HetAB mutations across all blocks', 'hetAB', df_window_hetAB_vs_missing)
-    plotScatterObj.plot(alpha=0.1, points='Window of %s blocks' % parameterObj.window_size)
-
-    df_window_hetAB_vs_multiallelic = df_window_variant_tsv[['multiallelic', 'hetAB']]
-    plotScatterObj = PlotScatterObj(parameterObj, 'window_hetAB_vs_multiallelic', 'Proportion of bases with "multiallelic" genotypes', 'multiallelic', 'HetAB mutations across all blocks', 'hetAB', df_window_hetAB_vs_multiallelic)
-    plotScatterObj.plot(alpha=0.1, points='Window of %s blocks' % parameterObj.window_size)
-
-    df_window_correlation = df_window_variant_tsv[['fixed', 'hetA', 'hetAB', 'hetB', 'multiallelic', 'missing', 'd_xy', 'f_st']]
-    plotCorrelationObj = PlotCorrelationObj(parameterObj, 'window_correlation', df_window_correlation)
-    plotCorrelationObj.plot()
-
-    return (dxy_fst_fn, piA_piB_fn, tuple_fn)
-
-def get_pair_id(pair_id, idx, parameterObj):
-    return parameterObj.pair_ids_by_pair_idx[pair_id][idx]
+    def plot(self, alpha, points):
+        fig = plt.figure(figsize=(12,12), dpi=400, frameon=False)
+        plt.ylabel(self.y_label)
+        plt.xlabel(self.x_label)
+        sns.swarmplot(x=self.x, y=self.y)
+        sns.boxplot(x=self.x, y=self.y,
+            showcaps=False,boxprops={'facecolor':'None', 'edgecolor':'None'},
+            showfliers=False,whiskerprops={'linewidth':0})
+        fn = "%s.png" % (self.name) 
+        fig.savefig(fn, format="png")
+        plt.close(fig)
+        return fn
 
 class PlotHeatmapObj():
     def __init__(self, parameterObj, name, title, df):
@@ -355,7 +164,7 @@ class PlotHeatmapObj():
         return df_pivot
 
     def plot(self):
-        fig = plt.figure(figsize=(10,10), dpi=400)
+        fig = plt.figure(figsize=(10,10), dpi=400, frameon=False)
         #
         ax = fig.add_subplot(111)
         df_pivot = self.get_data()
@@ -419,11 +228,11 @@ class PlotHistObj():
         return (x_by_column_id, xlim, bins)
 
     def plot(self):
-        fig = plt.figure(figsize=(16,6), dpi=400)
+        fig = plt.figure(figsize=(16,6), dpi=400, frameon=False)
         ax = fig.add_subplot(111)
         column_ids = self.df.columns.tolist()
         x_by_column_id, xlim, bins = self.get_data(column_ids, 0.01)
-        colour = 'lightgrey'
+        colour = 'cornflowerblue'
         for idx, column_id in enumerate(column_ids):
             if len(column_ids) > 1:
                 colour = self.cm(idx / len(column_ids))
@@ -471,22 +280,30 @@ class PlotGenomeObj():
     def plot(self):
         column_ids = self.df.columns.tolist()[1:]
         row_id = self.df[self.df.columns[0]].tolist()
-        fig, axarr = plt.subplots(1, 1, figsize=(24,6), dpi=200)
+        fig, axarr = plt.subplots(1, 1, figsize=(16,6), dpi=200, frameon=False)
         if self.subplots:
             fig, axarr = plt.subplots(len(column_ids), 1, sharex=True, figsize=(24,(len(column_ids) * 6)), dpi=200)
         x_by_contig_id, y_by_contig_id_by_column_id, x_boundaries = self.get_data(column_ids, row_id)
         #print(x_by_contig_id, y_by_contig_id_by_column_id, x_boundaries)
         
-        max_y = 0
+        max_y = 0.0
+        max_x = 0
+        min_y = 1.0
         _handles, _labels = [], []
         for idx, column_id in enumerate(column_ids):
             i = 0
+            y_list = []
             for seq_id, length in self.length_by_seq_id.items():
                 x, y = x_by_contig_id[seq_id], y_by_contig_id_by_column_id[column_id][seq_id]
+                #print(seq_id, length)
                 if y:
+                    max_x = max(x)
+                    y_list.extend(y)
                     _max_y = max(y)
                     if max_y < _max_y:
                         max_y = _max_y
+                    if min_y > min(y):
+                        min_y = min(y)
                     if self.by_population:
                         colour = self.parameterObj.colour_by_population[self.parameterObj.population_by_sample_id[column_id]]
                         #axarr.plot(x_smooth, y_smooth, label=column_id, color=colour, alpha=0.8, marker='o', markersize=0.5, linewidth=1)
@@ -494,32 +311,40 @@ class PlotGenomeObj():
                         axarr.vlines(x_boundaries, 0, max_y, colors=['lightgrey'], linestyles='dashed', linewidth=1)
                         axarr.set(ylabel = column_id)
                     elif self.subplots:
-                        colour = 'grey' if i % 2 else 'black'
-                        if len(y) > 10:
-                            x_smooth = numpy.linspace(min(x), max(x), floor(len(x) * 0.05) + 5)
-                            order = 2 # smoothness order
-                            
-                            s = BSpline(x, y, order)
-                            y_smooth = s(x_smooth)
-                            axarr[idx].plot(x_smooth, y_smooth, color=colour, alpha=0.5, marker='o', markersize=0, linewidth=1)
-                        axarr[idx].plot(x, y, color=colour, alpha=1, marker='o', markersize=0.2, linewidth=0)
-                        axarr[idx].vlines(x_boundaries, 0, max_y, colors=['lightgrey'], linestyles='dashed')
+                        if self.name == 'missing_multiallelic':
+                            colour = 'cornflowerblue' if i % 2 else 'yellowgreen'
+                        else:
+                            colour = 'orange' if i % 2 else 'mediumorchid'
+                        #if len(y) > 10000:
+                        #    random_indexes = sorted(random.sample(range(len(y)), floor(len(y) * 0.4)))
+                        #    x_smooth = [x[j] for j in random_indexes]
+                        #    y_smooth = [y[j] for j in random_indexes]
+                        #    axarr[idx].plot(x_smooth, y_smooth, color=colour, alpha=0.5, marker='o', markersize=0, linewidth=2)
+                        #else:
+                        #    axarr[idx].plot(x, y, color=colour, alpha=0.5, marker='o', markersize=0, linewidth=2)
+                        axarr[idx].plot(x, y, color=colour, alpha=0.5, marker='o', markersize=0, linewidth=2)
+                        axarr[idx].plot(x, y, color='black', alpha=0.5, marker='o', markersize=0.5, linewidth=0)
+                        axarr[idx].vlines(x_boundaries, 0, max_y, colors=['white'], linestyles='solid')
                         axarr[idx].set(ylabel = column_id)
                     else:
                         colour = self.cm(idx / len(column_ids))
-                        if len(y) > 10:
-                            x_smooth = numpy.linspace(min(x), max(x), floor(len(x) * 0.05) + 5)
-                            
-                            order = 2 # smoothness order
-                            s = BSpline(x, y, order)
-                            y_smooth = s(x_smooth)
-                        #y_smooth = spline(x, y, x_smooth)
-                        #alpha = 0.5 if i % 2 else 0.8
-                            axarr.plot(x_smooth, y_smooth, label=column_id, color=colour, alpha=0.8, marker='o', markersize=0.5, linewidth=1)
+                        #if len(y) > 10000:
+                        #    random_indexes = sorted(random.sample(range(len(y)), floor(len(y) * 0.05) ))
+                        #    x_smooth = [x[j] for j in random_indexes]
+                        #    y_smooth = [y[j] for j in random_indexes]
+                        #    axarr.plot(x_smooth, y_smooth, color=colour, alpha=0.5, marker='o', markersize=0, linewidth=1)
+                        #else:
+                        #    axarr.plot(x, y, color=colour, alpha=0.5, marker='o', markersize=0, linewidth=1)
+                        axarr.plot(x, y, color=colour, alpha=0.5, marker='o', markersize=0, linewidth=1)
                         axarr.plot(x, y, color=colour, alpha=1, marker='o', markersize=0.2, linewidth=0)
                         axarr.vlines(x_boundaries, 0, max_y, colors=['lightgrey'], linestyles='dashed', linewidth=1)
                         axarr.set(ylabel = column_id)
                 i += 1
+            if self.subplots:
+                axarr[idx].hlines(numpy.mean(y_list), 0, max_x, colors=['darkgrey'], linestyles='dashed', linewidth=1)
+                axarr[idx].set_ylim(min_y, max_y)
+            else:
+                axarr.set_ylim(min_y, max_y)
         plt.tight_layout()
         if self.by_population:
             for population, colour in self.parameterObj.colour_by_population.items():
@@ -546,7 +371,249 @@ class PlotGenomeObj():
         return fn
 
 
+class PlotCovObj():
+    def __init__(self, parameterObj, name, y_label, data):
+        self.parameterObj = parameterObj
+        self.name = name
+        self.y_label = y_label
+        self.genome_length = None
+        self.length_by_pair_count = []
+        self.block_length_by_pair_count = []
+        self.final_length_by_pair_count = []
+        self.length_by_sample_count = []
+        self.block_length_by_sample_count = []
+        self.final_length_by_sample_count = []
+        self.populate(data)
+        self.cm = plt.get_cmap('Set2')
 
+    def populate(self, data):
+        self.genome_length = sum([y for x, y in data.length_by_sample_count.items()])
+        for pair_count in range(self.parameterObj.pairs_count, 0, -1):
+            try:
+                self.length_by_pair_count.append(self.length_by_pair_count[-1] + data.length_by_pair_count.get(pair_count, 0.0) / self.genome_length)
+            except IndexError:
+                self.length_by_pair_count.append(data.length_by_pair_count.get(pair_count, 0.0) / self.genome_length)
+            try:
+                self.block_length_by_pair_count.append(self.block_length_by_pair_count[-1] + data.block_length_by_pair_count.get(pair_count, 0.0) / self.genome_length)
+            except IndexError:
+                self.block_length_by_pair_count.append(data.block_length_by_pair_count.get(pair_count, 0.0) / self.genome_length)
+            try:
+                self.final_length_by_pair_count.append(self.final_length_by_pair_count[-1] + data.final_length_by_pair_count.get(pair_count, 0.0) / self.genome_length)
+            except IndexError:
+                self.final_length_by_pair_count.append(data.block_length_by_pair_count.get(pair_count, 0.0) / self.genome_length)
+        for sample_count in range(self.parameterObj.samples_count, 0, -1):
+            try:
+                self.length_by_sample_count.append(self.length_by_sample_count[-1] + data.length_by_sample_count.get(sample_count, 0.0) / self.genome_length)
+            except IndexError:
+                self.length_by_sample_count.append(data.length_by_sample_count.get(sample_count, 0.0) / self.genome_length)
+            try:
+                self.block_length_by_sample_count.append(self.block_length_by_sample_count[-1] + data.block_length_by_sample_count.get(sample_count, 0.0) / self.genome_length)
+            except IndexError:
+                self.block_length_by_sample_count.append(data.block_length_by_sample_count.get(sample_count, 0.0) / self.genome_length)
+            try:
+                self.final_length_by_sample_count.append(self.final_length_by_sample_count[-1] + data.final_length_by_sample_count.get(sample_count, 0.0) / self.genome_length) 
+            except IndexError:
+                self.final_length_by_sample_count.append(data.final_length_by_sample_count.get(sample_count, 0.0) / self.genome_length) 
+            
+    def plot(self, grouping, xlabel, title):
+        categories, y1, y2, y3 = None, None, None, None
+        if grouping == "samples":
+            categories = self.parameterObj.samples_count
+            y1 = self.length_by_sample_count
+            y2 = self.block_length_by_sample_count
+            y3 = self.final_length_by_sample_count
+        else:
+            categories = self.parameterObj.pairs_count
+            y1 = self.length_by_pair_count
+            y2 = self.block_length_by_pair_count
+            y3 = self.final_length_by_pair_count
+        fig = plt.figure(figsize=(16,12), dpi=400, frameon=False)
+        ax = fig.add_subplot(111)
+        #x = [int(_x + 1) for _x in range(categories)]
+        x = list(range(0, categories, 1))
+        colours = [self.cm(idx / 3) for idx in range(3)]
+        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+        ax.set_ylim((-0.05, 1.05))
+        ax.set_xlim((-1, categories + 1))
+        #ax.set_xscale("log")
+        plt.title(title)
+        plt.ylabel(self.y_label)
+        plt.xlabel(xlabel)
+        ax.hlines(1.0, 0.0, categories + 1, linestyles='dashed', colors='lightgrey', linewidth=2)
+        ax.plot(x, y1, '-ok', label="BED Intervals (>=1 b)", color=colours[0], markersize=4, linewidth=4, markerfacecolor='black')
+        plt.legend(loc='upper left', frameon=True)
+        fn = "%s.%s.%s.1.png" % (self.parameterObj.outprefix, self.name, grouping) 
+        fig.savefig(fn, format="png")
+        ax.plot(x, y2, '-ok', label="BED Intervals (>=64 b)", color=colours[1], markersize=4, linewidth=4, markerfacecolor='black')
+        plt.legend(loc='upper left', frameon=True)
+        fn = "%s.%s.%s.2.png" % (self.parameterObj.outprefix, self.name, grouping) 
+        fig.savefig(fn, format="png")
+        ax.plot(x, y3, '-ok', label="Blocktools (64 b)", color=colours[2], markersize=4, linewidth=4, markerfacecolor='black')
+        plt.legend(loc='upper left', frameon=True)
+        fn = "%s.%s.%s.3.png" % (self.parameterObj.outprefix, self.name, grouping) 
+        fig.savefig(fn, format="png")
+        plt.close(fig)
+        return 1
+
+def plot_window_coverage_tsv(parameterObj, sequence_OrdDict):
+    df_window_coverage_tsv = pandas.read_csv( \
+        parameterObj.window_coverage_tsv_f, \
+        sep="\t" \
+        )
+    df_window_coverage_tsv = df_window_coverage_tsv.dropna()
+    df_mean_block_density = df_window_coverage_tsv[df_window_coverage_tsv.columns[3:4].tolist()]
+    plotHistObj = PlotHistObj(parameterObj, "mean_window_density", "Value", "Count", df_mean_block_density)
+    fn_mean_block_density_hist = plotHistObj.plot()
+
+    sample_cov_df_metrics = df_window_coverage_tsv[df_window_coverage_tsv.columns[0:1].tolist() + df_window_coverage_tsv.columns[-(len(df_window_coverage_tsv.columns)-6):].tolist()]
+    plotGenomeObj = PlotGenomeObj(parameterObj, "sample_coverage", sample_cov_df_metrics, sequence_OrdDict, subplots=False, by_population=True)
+    fn_sample_cov_genome = plotGenomeObj.plot()
+    return (fn_mean_block_density_hist, fn_sample_cov_genome)
+
+def plot_pairs_comparison(parameterObj_1, parameterObj_2):
+    df_variant_pairs_1 = pandas.read_csv( \
+        parameterObj_1.variant_pairs_tsv_f, \
+        sep="\t" \
+        )
+    df_variant_pairs_1 = df_variant_pairs_1.dropna()
+    
+    df_variant_pairs_2 = pandas.read_csv( \
+        parameterObj_2.variant_pairs_tsv_f, \
+        sep="\t" \
+        )
+    df_variant_pairs_2 = df_variant_pairs_2.dropna()
+    
+    df_variant_pairs_1_fst = df_variant_pairs_1[['pair_idx', 'f_st']]
+    df_variant_pairs_1_fst.insert(0, 'type', os.path.basename(parameterObj_1.outprefix))
+    df_variant_pairs_2_fst = df_variant_pairs_2[['pair_idx', 'f_st']]
+    df_variant_pairs_2_fst.insert(0, 'type', os.path.basename(parameterObj_2.outprefix))
+    df_variant_pairs_fst = pandas.concat([df_variant_pairs_1_fst, df_variant_pairs_2_fst], axis=0)
+    plotSwarmObj = PlotSwarmObj('pair_fst_comparison', 'F_st %s' % parameterObj_1.outprefix, 'type', 'F_st %s' % parameterObj_1.outprefix, 'f_st', df_variant_pairs_fst)
+    fn = plotSwarmObj.plot(alpha=0.8, points='Pairs')
+
+    df_variant_pairs_1_dxy = df_variant_pairs_1[['pair_idx', 'd_xy']]
+    df_variant_pairs_1_dxy.insert(0, 'type', os.path.basename(parameterObj_1.outprefix))
+    df_variant_pairs_2_dxy = df_variant_pairs_2[['pair_idx', 'd_xy']]
+    df_variant_pairs_2_dxy.insert(0, 'type', os.path.basename(parameterObj_2.outprefix))
+    df_variant_pairs_dxy = pandas.concat([df_variant_pairs_1_dxy, df_variant_pairs_2_dxy], axis=0)
+    plotSwarmObj = PlotSwarmObj('pair_dxy_comparison', 'D_xy %s' % parameterObj_1.outprefix, 'type', 'D_xy %s' % parameterObj_1.outprefix, 'd_xy', df_variant_pairs_dxy)
+    fn = plotSwarmObj.plot(alpha=0.8, points='Pairs')
+    return fn 
+
+def plot_variant_pairs_tsv(parameterObj, sequence_OrdDict):
+    df_variant_pairs = pandas.read_csv( \
+        parameterObj.variant_pairs_tsv_f, \
+        sep="\t" \
+        )
+    df_variant_pairs = df_variant_pairs.dropna()
+
+    df_variant_pairs_piA = df_variant_pairs[df_variant_pairs.columns[0:1].tolist() + df_variant_pairs.columns[9:10].tolist()]
+    plotHeatmapObj = PlotHeatmapObj(parameterObj, 'pi_A', 'piA (as proportion of highest value)', df_variant_pairs_piA)
+    piA_fn = plotHeatmapObj.plot()
+
+    df_variant_pairs_piB = df_variant_pairs[df_variant_pairs.columns[0:1].tolist() + df_variant_pairs.columns[10:11].tolist()]
+    plotHeatmapObj = PlotHeatmapObj(parameterObj, 'pi_B', 'piB (as proportion of highest value)', df_variant_pairs_piB)
+    piB_fn = plotHeatmapObj.plot()
+
+    df_variant_pairs_dxy = df_variant_pairs[df_variant_pairs.columns[0:1].tolist() + df_variant_pairs.columns[11:12].tolist()]
+    plotHeatmapObj = PlotHeatmapObj(parameterObj, 'd_xy', 'Dxy (as proportion of highest value)', df_variant_pairs_dxy)
+    dxy_fn = plotHeatmapObj.plot()
+
+    df_variant_pairs_fst = df_variant_pairs[df_variant_pairs.columns[0:1].tolist() + df_variant_pairs.columns[12:13].tolist()]
+    plotHeatmapObj = PlotHeatmapObj(parameterObj, 'f_st', 'Fst (as proportion of highest value)', df_variant_pairs_fst)
+    fst_fn = plotHeatmapObj.plot()
+
+    df_pair_fst_vs_bases = df_variant_pairs[df_variant_pairs.columns[2:3].tolist() + df_variant_pairs.columns[12:13].tolist()]
+    plotScatterObj = PlotScatterObj(parameterObj, 'pair_fst_vs_bases', 'Bases sampled in blocks', 'bases', 'F_st across all blocks', 'f_st', df_pair_fst_vs_bases)
+    plotScatterObj.plot(alpha=0.8, points='Pairs')
+
+    df_pair_fst_vs_missing = df_variant_pairs[['missing', 'f_st']]
+    plotScatterObj = PlotScatterObj(parameterObj, 'pair_fst_vs_missing', 'Proportion of bases with "missing" genotypes', 'missing', 'F_st across all blocks', 'f_st', df_pair_fst_vs_missing)
+    plotScatterObj.plot(alpha=0.8, points='Pairs')
+
+    df_pair_fst_vs_multiallelic = df_variant_pairs[['multiallelic', 'f_st']]
+    plotScatterObj = PlotScatterObj(parameterObj, 'pair_fst_vs_multiallelic', 'Proportion of bases with "multiallelic" genotypes', 'multiallelic', 'F_st across all blocks', 'f_st', df_pair_fst_vs_multiallelic)
+    plotScatterObj.plot(alpha=0.8, points='Pairs')
+
+    df_pair_dxy_vs_bases = df_variant_pairs[['bases', 'd_xy']]
+    plotScatterObj = PlotScatterObj(parameterObj, 'pair_dxy_vs_bases', 'Bases sampled in blocks', 'bases', 'D_xy across all blocks', 'd_xy', df_pair_dxy_vs_bases)
+    plotScatterObj.plot(alpha=0.8, points='Pairs')
+
+    df_pair_dxy_vs_missing = df_variant_pairs[['missing', 'd_xy']]
+    plotScatterObj = PlotScatterObj(parameterObj, 'pair_dxy_vs_missing', 'Proportion of bases with "missing" genotypes', 'missing', 'D_xy across all blocks', 'd_xy', df_pair_dxy_vs_missing)
+    plotScatterObj.plot(alpha=0.8, points='Pairs')
+
+    df_pair_dxy_vs_multiallelic = df_variant_pairs[['multiallelic', 'd_xy']]
+    plotScatterObj = PlotScatterObj(parameterObj, 'pair_dxy_vs_multiallelic', 'Proportion of bases with "multiallelic" genotypes', 'multiallelic', 'D_xy across all blocks', 'd_xy', df_pair_dxy_vs_multiallelic)
+    plotScatterObj.plot(alpha=0.8, points='Pairs')
+
+    return (piA_fn, piB_fn, dxy_fn, fst_fn)
+
+        
+def plot_window_variant_tsv(parameterObj, sequence_OrdDict):
+    df_window_variant_tsv = pandas.read_csv( \
+        parameterObj.window_variant_tsv_f, \
+        sep="\t" \
+        )
+    df_window_variant_tsv = df_window_variant_tsv.dropna()
+
+    dxy_fst_df = df_window_variant_tsv[df_window_variant_tsv.columns[0:1].tolist() + df_window_variant_tsv.columns[9:11].tolist()]
+    plotGenomeObj = PlotGenomeObj(parameterObj, "dxy_fst", dxy_fst_df, sequence_OrdDict, subplots=True, by_population=False)
+    dxy_fst_fn = plotGenomeObj.plot()
+
+    piA_piB_df = df_window_variant_tsv[df_window_variant_tsv.columns[0:1].tolist() + df_window_variant_tsv.columns[7:9].tolist()]
+    plotGenomeObj = PlotGenomeObj(parameterObj, "piA_piB", piA_piB_df, sequence_OrdDict, subplots=True, by_population=False)
+    piA_piB_fn = plotGenomeObj.plot()
+
+    profile_df = df_window_fst_vs_missing = df_window_variant_tsv[['window_id', 'missing', 'multiallelic']]
+    plotGenomeObj = PlotGenomeObj(parameterObj, "missing_multiallelic", profile_df, sequence_OrdDict, subplots=True, by_population=False)
+    tuple_fn = plotGenomeObj.plot()
+    
+    profile_df = df_window_fst_vs_missing = df_window_variant_tsv[['window_id', 'hetA', 'hetB', 'hetAB', 'fixed']]
+    plotGenomeObj = PlotGenomeObj(parameterObj, "tuple", profile_df, sequence_OrdDict, subplots=False, by_population=False)
+    tuple_fn = plotGenomeObj.plot()
+
+    df_window_fst_vs_missing = df_window_variant_tsv[['missing', 'f_st']]
+    plotScatterObj = PlotScatterObj(parameterObj, 'window_fst_vs_missing', 'Proportion of bases with "missing" genotypes', 'missing', 'F_st across all blocks', 'f_st', df_window_fst_vs_missing)
+    plotScatterObj.plot(alpha=0.1, points='Window of %s blocks' % parameterObj.window_size)
+
+    df_window_fst_vs_multiallelic = df_window_variant_tsv[['multiallelic', 'f_st']]
+    plotScatterObj = PlotScatterObj(parameterObj, 'window_fst_vs_multiallelic', 'Proportion of bases with "multiallelic" genotypes', 'multiallelic', 'F_st across all blocks', 'f_st', df_window_fst_vs_multiallelic)
+    plotScatterObj.plot(alpha=0.1, points='Window of %s blocks' % parameterObj.window_size)
+
+    df_window_piA_vs_missing = df_window_variant_tsv[['missing', 'pi_A']]
+    plotScatterObj = PlotScatterObj(parameterObj, 'window_piA_vs_missing', 'Proportion of bases with "missing" genotypes', 'missing', 'Pi_A across all blocks', 'pi_A', df_window_piA_vs_missing)
+    plotScatterObj.plot(alpha=0.1, points='Window of %s blocks' % parameterObj.window_size)
+
+    df_window_piA_vs_multiallelic = df_window_variant_tsv[['multiallelic', 'pi_A']]
+    plotScatterObj = PlotScatterObj(parameterObj, 'window_piA_vs_multiallelic', 'Proportion of bases with "multiallelic" genotypes', 'multiallelic', 'Pi_A across all blocks', 'pi_A', df_window_piA_vs_multiallelic)
+    plotScatterObj.plot(alpha=0.1, points='Window of %s blocks' % parameterObj.window_size)
+
+    df_window_dxy_vs_missing = df_window_variant_tsv[['missing', 'd_xy']]
+    plotScatterObj = PlotScatterObj(parameterObj, 'window_dxy_vs_missing', 'Proportion of bases with "missing" genotypes', 'missing', 'D_xy across all blocks', 'd_xy', df_window_dxy_vs_missing)
+    plotScatterObj.plot(alpha=0.1, points='Window of %s blocks' % parameterObj.window_size)
+
+    df_window_dxy_vs_multiallelic = df_window_variant_tsv[['multiallelic', 'd_xy']]
+    plotScatterObj = PlotScatterObj(parameterObj, 'window_dxy_vs_multiallelic', 'Proportion of bases with "multiallelic" genotypes', 'multiallelic', 'D_xy across all blocks', 'd_xy', df_window_dxy_vs_multiallelic)
+    plotScatterObj.plot(alpha=0.1, points='Window of %s blocks' % parameterObj.window_size)
+
+    df_window_fixed_vs_missing = df_window_variant_tsv[['missing', 'fixed']]
+    plotScatterObj = PlotScatterObj(parameterObj, 'window_fixed_vs_missing', 'Proportion of bases with "missing" genotypes', 'missing', 'Fixed mutations across all blocks', 'fixed', df_window_fixed_vs_missing)
+    plotScatterObj.plot(alpha=0.1, points='Window of %s blocks' % parameterObj.window_size)
+
+    df_window_fixed_vs_multiallelic = df_window_variant_tsv[['multiallelic', 'fixed']]
+    plotScatterObj = PlotScatterObj(parameterObj, 'window_fixed_vs_multiallelic', 'Proportion of bases with "multiallelic" genotypes', 'multiallelic', 'Fixed mutations across all blocks', 'fixed', df_window_fixed_vs_multiallelic)
+    plotScatterObj.plot(alpha=0.1, points='Window of %s blocks' % parameterObj.window_size)
+
+    df_window_hetAB_vs_missing = df_window_variant_tsv[['missing', 'hetAB']]
+    plotScatterObj = PlotScatterObj(parameterObj, 'window_hetAB_vs_missing', 'Proportion of bases with "missing" genotypes', 'missing', 'HetAB mutations across all blocks', 'hetAB', df_window_hetAB_vs_missing)
+    plotScatterObj.plot(alpha=0.1, points='Window of %s blocks' % parameterObj.window_size)
+
+    df_window_hetAB_vs_multiallelic = df_window_variant_tsv[['multiallelic', 'hetAB']]
+    plotScatterObj = PlotScatterObj(parameterObj, 'window_hetAB_vs_multiallelic', 'Proportion of bases with "multiallelic" genotypes', 'multiallelic', 'HetAB mutations across all blocks', 'hetAB', df_window_hetAB_vs_multiallelic)
+    plotScatterObj.plot(alpha=0.1, points='Window of %s blocks' % parameterObj.window_size)
+
+    return (dxy_fst_fn, piA_piB_fn, tuple_fn)
 
 
 #########################
@@ -571,6 +638,9 @@ CONFIG_BY_ZYGOSITY = {
 
 def pairs_to_samples(pair_idxs, parameterObj):
     return set(chain.from_iterable([parameterObj.sample_idxs_by_pair_idx[pair_idx] for pair_idx in pair_idxs]))
+
+def get_pair_id(pair_id, idx, parameterObj):
+    return parameterObj.pair_ids_by_pair_idx[pair_id][idx]
 
 def write_yaml(data, yaml_f):
     with open(yaml_f, 'w') as yaml_fh:
