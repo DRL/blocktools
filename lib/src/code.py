@@ -26,7 +26,7 @@ mat.use("agg")
 import matplotlib.pyplot as plt
 import seaborn as sns
 plt.style.use('seaborn-white')
-mat.rcParams['font'] = 16
+#mat.rcParams['font'] = 16
 mat.rcParams['text.color'] = 'grey'
 mat.rcParams['axes.edgecolor'] = 'lightgrey'
 mat.rcParams['xtick.color'] = 'grey'
