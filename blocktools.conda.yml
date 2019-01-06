@@ -16,4 +16,5 @@ dependencies:
   - tqdm
   - numpy
   - pandas
+  - seaborn
 
