@@ -20,8 +20,8 @@ conda activate blocktools
 Usage
 -----
 
-- Input files are specified in the ```yaml``` files (see ```data/input/toy.multibed.A.yaml``` and ```data/input/toy.multibed.B.yaml```)
-- Algorithm A is faster than B, but algorithm B makes more (divergent) blocks
+- Input files are specified in the ```yaml``` files (see ```config/*.yaml```)
+- Algorithm A is naive blocking (no joining of intervals), B joins intervals and jumps gaps.
 
 ```
 # Making blocks
