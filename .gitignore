@@ -13,3 +13,7 @@ A.*
 B.*
 Hmel*
 .DS_Store
+
+data/
+
+lib/src/__pycache__/

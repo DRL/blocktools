@@ -27,9 +27,9 @@ def task_parse_genome_f(parameterObj):
 def task_parse_multibed_f(parameterObj, sequence_OrdDict):
     start = timer()
     print("[#] Loading multiBED features ...")
-    regionBatchObjs = parse_multibed_f(parameterObj, sequence_OrdDict)
+    regionBatchObjs, coverageObj = parse_multibed_f(parameterObj, sequence_OrdDict)
     print("[+] Intervals read in %.3fs (%.2fMB)" % (timer() - start, memory_usage_psutil()))
-    return regionBatchObjs
+    return regionBatchObjs, coverageObj
 
 def task_make_blocks(parameterObj, regionBatchObjs):
     start = timer()
@@ -38,7 +38,7 @@ def task_make_blocks(parameterObj, regionBatchObjs):
     print("[+] Made %s blocks in %.3fs (%.2fMB)" % (len(blockDataObj), timer() - start, memory_usage_psutil()))
     return blockDataObj
 
-def task_write_block_output(parameterObj, blockDataObj):
+def task_write_block_output(parameterObj, blockDataObj, coverageObj):
     start = timer()
     print("[#] Writing output ...")
     fn_block_bed, fn_block_void_bed = blockDataObj.write_block_bed(parameterObj)
@@ -51,6 +51,11 @@ def task_write_block_output(parameterObj, blockDataObj):
     start = timer()
     fn_span_tsv = blockDataObj.write_block_summary(parameterObj)
     print("[+] Wrote '%s' in %.3fs (%.2fMB)" % (fn_span_tsv, timer() - start, memory_usage_psutil()))
+    start = timer()
+    print("[#] Writing output ...")
+    print(vars(coverageObj))
+    write_yaml(vars(coverageObj), parameterObj.bed_coverage_f)
+    print("[+] Wrote '%s' in %.3fs (%.2fMB)" % (parameterObj.bed_coverage_f, timer() - start, memory_usage_psutil()))
 
 def main():
     start_time = timer()
@@ -59,9 +64,9 @@ def main():
     parameterObj = task_parse_parameters(args)
     #print(parameterObj.__dict__)
     sequence_OrdDict = task_parse_genome_f(parameterObj)
-    regionBatchObjs = task_parse_multibed_f(parameterObj, sequence_OrdDict)
+    regionBatchObjs, coverageObj = task_parse_multibed_f(parameterObj, sequence_OrdDict)
     blockDataObj = task_make_blocks(parameterObj, regionBatchObjs)
-    task_write_block_output(parameterObj, blockDataObj)
+    task_write_block_output(parameterObj, blockDataObj, coverageObj)
     print("[+] Total runtime: %.3fs" % (timer() - start_time))
 
 if __name__ == "__main__":

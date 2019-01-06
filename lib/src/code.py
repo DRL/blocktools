@@ -15,26 +15,43 @@ from natsort import natsorted
 #import operator
 from itertools import combinations, product, chain
 import copy
-from scipy.interpolate import spline
+#from scipy.interpolate import BSpline
 
 ########################### PLOT
 import matplotlib as mat
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from matplotlib.ticker import MaxNLocator
 from matplotlib import cm
 mat.use("agg")
 import matplotlib.pyplot as plt
+import seaborn as sns
 plt.style.use('seaborn-white')
+#mat.rcParams['font'] = 16
+#print(mat.rcParams.keys())
 mat.rcParams['text.color'] = 'grey'
 mat.rcParams['axes.edgecolor'] = 'lightgrey'
 mat.rcParams['xtick.color'] = 'grey'
 mat.rcParams['ytick.color'] = 'grey'
 mat.rcParams['grid.color'] = 'lightgrey'
-#mat.rcParams['font.family'] = "serif"
+mat.rcParams['font.family'] = 'sans-serif'
+legendfontsize = 18
+axestickfontsize = 16
+axeslabelfontsize = 16
+mat.rcParams['xtick.labelsize'] = axestickfontsize
+mat.rcParams['ytick.labelsize'] = axestickfontsize
+mat.rcParams['figure.frameon'] = False
+mat.rcParams['axes.grid'] = False
 
 '''
+ax.grid(True)
+plt.gca().spines["top"].set_visible(False)  
+plt.gca().spines["right"].set_visible(False)
+ax.set_frame_on(False)
+ax.lines[0].set_visible(False)
 
 [Notes]
 
+- 
 - test dataset (only chr1 & chr3)
 
 > awk '$1=="chr1" || $1=="chr3"' ../../input/Hmel2.chromTransfers.2016_09_20.txt | cut -f4 | sort | uniq > chr1_chr3.contigs.txt
@@ -47,102 +64,85 @@ mat.rcParams['grid.color'] = 'lightgrey'
 
 [To Do]
 
-- make a tree of pairwise dxy
-- run on full BED to check distro of block density
-- change block density to length
+- Plot Fst of pairs in B and AllCallable
+- calculate/save/print Pi for each sample  
+
+- report stats on average hetA, hetAb, hetB, fixed
+ 
+- make a tree of pairwise dxy : phylip, which format?
 - astral/dadi/twist/discovista
 - change algoA so that it gets invoked if BLOCKLENGTH ≥ MIN_INTERVAL_LENGTH
+- Check how it works with 1bp blocks?
+- Check 64b, 128b
+- check difference(BED,BED_ALLCALLABLE) for how many regions covered by each
+- does bias only affect intergenic? do same with genic
 
+- Mean_Fst of algoB should be closer to lohse2016 thank all_callable. The more samples are added, the greater the upward bias under all_callable.
+=> scatterplot with Fst values.
 
 '''
 
 #def format_bases(*args, block_length):
 #    return "%0.0f" % (args[0] * block_length)
 
+class PlotScatterObj():
+    def __init__(self, parameterObj, name, x_label, x_key, y_label, y_key, df):
+        self.parameterObj = parameterObj
+        self.name = name
+        self.y_label = y_label
+        self.x_label = x_label
+        self.x = df[x_key]
+        self.y = df[y_key]
 
-def plot_block_span_tsv(parameterObj, sequence_OrdDict):
-    block_span_df = pandas.read_csv( \
-        parameterObj.block_pairs_f, \
-        sep="\t"
-        )
-    plotHeatmapObj = PlotHeatmapObj(parameterObj, 'bases', 'Blocked span (as proportion of highest value)', block_span_df)
-    fn_block_span_tsv = plotHeatmapObj.plot()
-    return fn_block_span_tsv
+    def plot(self, alpha, points):
+        fig = plt.figure(figsize=(12,12), dpi=400, frameon=False)
+        ax = fig.add_subplot(111)
+        #ax.set_ylim((-0.05, 1))
+        #ax.set_xlim((0, categories + 1))
+        #ax.set_xscale("log")
+        plt.ylabel(self.y_label, fontsize=axeslabelfontsize)
+        plt.xlabel(self.x_label, fontsize=axeslabelfontsize)
+        ax.plot(self.x, self.y, 'o', alpha=alpha, label=points, color='cornflowerblue', markersize=4)
+        plt.legend(fontsize = legendfontsize, frameon=True)
+        #ax.set_aspect(1.)
+        divider = make_axes_locatable(ax)
+        axHistx = divider.append_axes("top", 1.2, pad=0.2, sharex=ax)
+        axHisty = divider.append_axes("right", 1.2, pad=0.2, sharey=ax)
+        axHistx.xaxis.set_tick_params(labelbottom=False)
+        axHisty.yaxis.set_tick_params(labelleft=False)
+        axHistx.hist(self.x, bins=100, color='cornflowerblue')
+        axHisty.hist(self.y, bins=100, color='cornflowerblue', orientation='horizontal')
+        fn = "%s.png" % (self.name) 
+        if self.parameterObj:
+            fn = "%s.%s.png" % (self.parameterObj.outprefix, self.name) 
+        plt.tight_layout()
+        fig.savefig(fn, format="png")
+        plt.close(fig)
+        return fn
 
-def plot_window_coverage_tsv(parameterObj, sequence_OrdDict):
-    df_window_coverage_tsv = pandas.read_csv( \
-        parameterObj.window_coverage_tsv_f, \
-        sep="\t" \
-        )
-    df_window_coverage_tsv = df_window_coverage_tsv.dropna()
-    
-    df_mean_block_density = df_window_coverage_tsv[df_window_coverage_tsv.columns[3:4].tolist()]
-    plotHistObj = PlotHistObj(parameterObj, "mean_block_density", "Value", "Count", df_mean_block_density)
-    fn_mean_block_density_hist = plotHistObj.plot()
+class PlotSwarmObj():
+    def __init__(self, name, x_label, x_key, y_label, y_key, df):
+        self.name = name
+        self.y_label = y_label
+        self.x_label = x_label
+        self.x = df[x_key]
+        self.y = df[y_key]
+        self.df = df
 
-    sample_cov_df_metrics = df_window_coverage_tsv[df_window_coverage_tsv.columns[0:1].tolist() + df_window_coverage_tsv.columns[-(len(df_window_coverage_tsv.columns)-6):].tolist()]
-    plotGenomeObj = PlotGenomeObj(parameterObj, "sample_coverage", sample_cov_df_metrics, sequence_OrdDict, subplots=False, by_population=True)
-    fn_sample_cov_genome = plotGenomeObj.plot()
-    return (fn_mean_block_density_hist, fn_sample_cov_genome)
-
-def plot_variant_pairs_tsv(parameterObj, sequence_OrdDict):
-    df_variant_pairs = pandas.read_csv( \
-        parameterObj.variant_pairs_tsv_f, \
-        sep="\t" \
-        )
-    df_variant_pairs = df_variant_pairs.dropna()
-
-    df_variant_pairs_piA = df_variant_pairs[df_variant_pairs.columns[0:1].tolist() + df_variant_pairs.columns[9:10].tolist()]
-    plotHeatmapObj = PlotHeatmapObj(parameterObj, 'pi_A', 'piA (as proportion of highest value)', df_variant_pairs_piA)
-    piA_fn = plotHeatmapObj.plot()
-
-    df_variant_pairs_piB = df_variant_pairs[df_variant_pairs.columns[0:1].tolist() + df_variant_pairs.columns[10:11].tolist()]
-    plotHeatmapObj = PlotHeatmapObj(parameterObj, 'pi_B', 'piB (as proportion of highest value)', df_variant_pairs_piB)
-    piB_fn = plotHeatmapObj.plot()
-
-    df_variant_pairs_dxy = df_variant_pairs[df_variant_pairs.columns[0:1].tolist() + df_variant_pairs.columns[11:12].tolist()]
-    plotHeatmapObj = PlotHeatmapObj(parameterObj, 'd_xy', 'Dxy (as proportion of highest value)', df_variant_pairs_dxy)
-    dxy_fn = plotHeatmapObj.plot()
-
-    df_variant_pairs_fst = df_variant_pairs[df_variant_pairs.columns[0:1].tolist() + df_variant_pairs.columns[12:13].tolist()]
-    plotHeatmapObj = PlotHeatmapObj(parameterObj, 'f_st', 'Fst (as proportion of highest value)', df_variant_pairs_fst)
-    fst_fn = plotHeatmapObj.plot()
-    return (piA_fn, piB_fn, dxy_fn, fst_fn)
-
-def plot_window_variant_tsv(parameterObj, sequence_OrdDict):
-    df_window_variant_tsv = pandas.read_csv( \
-        parameterObj.window_variant_tsv_f, \
-        sep="\t" \
-        )
-    df_window_variant_tsv = df_window_variant_tsv.dropna()
-
-    dxy_fst_df = df_window_variant_tsv[df_window_variant_tsv.columns[0:1].tolist() + df_window_variant_tsv.columns[9:11].tolist()]
-    plotGenomeObj = PlotGenomeObj(parameterObj, "dxy_fst", dxy_fst_df, sequence_OrdDict, subplots=True, by_population=False)
-    dxy_fst_fn = plotGenomeObj.plot()
-
-    piA_piB_df = df_window_variant_tsv[df_window_variant_tsv.columns[0:1].tolist() + df_window_variant_tsv.columns[7:9].tolist()]
-    plotGenomeObj = PlotGenomeObj(parameterObj, "piA_piB", piA_piB_df, sequence_OrdDict, subplots=True, by_population=False)
-    piA_piB_fn = plotGenomeObj.plot()
-
-    profile_df = df_window_variant_tsv[df_window_variant_tsv.columns[0:1].tolist() + df_window_variant_tsv.columns[1:7].tolist()]
-    plotGenomeObj = PlotGenomeObj(parameterObj, "tuple", profile_df, sequence_OrdDict, subplots=False, by_population=False)
-    tuple_fn = plotGenomeObj.plot()
-    return (dxy_fst_fn, piA_piB_fn, tuple_fn)
-
-    #profile_hist_df = df_window_variant_tsv[df_window_variant_tsv.columns[1:7].tolist()]
-    #plotHistObj = PlotHistObj(parameterObj, "SFS metrics", "Value", "Count", profile_hist_df)
-    #plotHistObj.plot()
-
-    #plotHistObj = PlotHistObj(parameterObj, "test", "x test", "y test", df_metrics[1:3])
-    #plotHistObj.plot()
-    #df_metrics = df_metrics.dropna()
-    #print(parameterObj.window_coverage_tsv_f)
-    #sample_cov_df_metrics = df_metrics[df_metrics.columns[0:1].tolist() + df_metrics.columns[-(len(df_metrics.columns)-6):].tolist()]
-    #fig = plot_along(parameterObj, sequence_OrdDict, sample_cov_df_metrics, 'sample_cov', line=False, by_sample=True)
-    #fig.savefig('%s.sample_cov.png' % parameterObj.window_coverage_tsv_f, format="png")
-
-def get_pair_id(pair_id, idx, parameterObj):
-    return parameterObj.pair_ids_by_pair_idx[pair_id][idx]
+    def plot(self, alpha, points):
+        fig = plt.figure(figsize=(12,12), dpi=400, frameon=False)
+        plt.ylabel(self.y_label, fontsize=axeslabelfontsize)
+        plt.xlabel(self.x_label, fontsize=axeslabelfontsize)
+        sns.swarmplot(x=self.x, y=self.y)
+        sns.boxplot(x=self.x, y=self.y,
+            showcaps=False,boxprops={'facecolor':'None', 'edgecolor':'None'},
+            showfliers=False,whiskerprops={'linewidth':0})
+        fn = "%s.png" % (self.name) 
+        plt.gca().spines["top"].set_visible(False)  
+        plt.gca().spines["right"].set_visible(False)
+        fig.savefig(fn, format="png")
+        plt.close(fig)
+        return fn
 
 class PlotHeatmapObj():
     def __init__(self, parameterObj, name, title, df):
@@ -159,7 +159,7 @@ class PlotHeatmapObj():
         return df_pivot
 
     def plot(self):
-        fig = plt.figure(figsize=(10,10), dpi=400)
+        fig = plt.figure(figsize=(10,10), dpi=400, frameon=False)
         #
         ax = fig.add_subplot(111)
         df_pivot = self.get_data()
@@ -189,10 +189,10 @@ class PlotHeatmapObj():
         cbar.ax.tick_params(labelsize=12)
         cbar.outline.set_visible(False)
         ax.set_title(self.title, pad=9)
-        ax.set_frame_on(False)
-        fig.tight_layout()
         fn = "%s.%s.png" % (self.parameterObj.outprefix, self.name) 
+        plt.tight_layout()
         fig.savefig(fn, format="png")
+        plt.close(fig)
         return fn 
 
 class PlotHistObj():
@@ -224,23 +224,27 @@ class PlotHistObj():
         return (x_by_column_id, xlim, bins)
 
     def plot(self):
-        fig = plt.figure(figsize=(16,6), dpi=400)
+        fig = plt.figure(figsize=(16,6), dpi=400, frameon=False)
         ax = fig.add_subplot(111)
         column_ids = self.df.columns.tolist()
         x_by_column_id, xlim, bins = self.get_data(column_ids, 0.01)
-        colour = 'lightgrey'
+        colour = 'cornflowerblue'
         for idx, column_id in enumerate(column_ids):
             if len(column_ids) > 1:
                 colour = self.cm(idx / len(column_ids))
             _lw=1
             counts, bins, patches = ax.hist(x=x_by_column_id[column_id], label="Distribution of %s" % (column_id), bins=bins, alpha=0.9, lw=_lw, facecolor=colour, edgecolor='white', align='left')
         ax.set_xlim(xlim)
-        plt.legend(frameon=True)
+        plt.legend(fontsize = legendfontsize, frameon=True)
         plt.title("Distribution of %s" % (self.name))
-        plt.ylabel(self.y_label)
-        plt.xlabel(self.x_label)
+        plt.ylabel(self.y_label, fontsize=axeslabelfontsize)
+        plt.xlabel(self.x_label, fontsize=axeslabelfontsize)
         fn = "%s.%s.png" % (self.parameterObj.outprefix, self.name) 
+        #plt.gca().spines["top"].set_visible(False)  
+        #plt.gca().spines["right"].set_visible(False)
+        plt.tight_layout()
         fig.savefig(fn, format="png")
+        plt.close(fig)
         return fn
 
 class PlotGenomeObj():
@@ -275,132 +279,357 @@ class PlotGenomeObj():
     def plot(self):
         column_ids = self.df.columns.tolist()[1:]
         row_id = self.df[self.df.columns[0]].tolist()
-        fig, axarr = plt.subplots(1, 1, figsize=(24,6), dpi=200)
+        fig, axarr = plt.subplots(1, 1, figsize=(16,6), dpi=200, frameon=False)
         if self.subplots:
             fig, axarr = plt.subplots(len(column_ids), 1, sharex=True, figsize=(24,(len(column_ids) * 6)), dpi=200)
         x_by_contig_id, y_by_contig_id_by_column_id, x_boundaries = self.get_data(column_ids, row_id)
-        max_y = 0
+        #print(x_by_contig_id, y_by_contig_id_by_column_id, x_boundaries)
+        plt.gca().spines["top"].set_visible(False)  
+        plt.gca().spines["right"].set_visible(False)
+        max_y = 0.0
+        min_y = 1.0
         _handles, _labels = [], []
         for idx, column_id in enumerate(column_ids):
             i = 0
+            y_list = []
             for seq_id, length in self.length_by_seq_id.items():
                 x, y = x_by_contig_id[seq_id], y_by_contig_id_by_column_id[column_id][seq_id]
+                #print(seq_id, length)
                 if y:
+                    y_list.extend(y)
                     _max_y = max(y)
-                    x_smooth = numpy.linspace(min(x), max(x), floor(len(x) * 0.25))
-                    y_smooth = spline(x, y, x_smooth)
                     if max_y < _max_y:
                         max_y = _max_y
+                    if min_y > min(y):
+                        min_y = min(y)
                     if self.by_population:
                         colour = self.parameterObj.colour_by_population[self.parameterObj.population_by_sample_id[column_id]]
-                        #axarr.plot(x_smooth, y_smooth, label=column_id, color=colour, alpha=0.8, marker='o', markersize=0.5, linewidth=1)
                         axarr.plot(x, y, color=colour, alpha=0.5, marker='o', markersize=0.2, linewidth=0)
                         axarr.vlines(x_boundaries, 0, max_y, colors=['lightgrey'], linestyles='dashed', linewidth=1)
                         axarr.set(ylabel = column_id)
+                        axarr.spines['right'].set_visible(False)
+                        axarr.spines['top'].set_visible(False)
                     elif self.subplots:
-                        colour = 'grey' if i % 2 else 'black'
-                        axarr[idx].plot(x_smooth, y_smooth, color=colour, alpha=0.5, marker='o', markersize=0, linewidth=1)
-                        axarr[idx].plot(x, y, color=colour, alpha=1, marker='o', markersize=0.2, linewidth=0)
-                        axarr[idx].vlines(x_boundaries, 0, max_y, colors=['lightgrey'], linestyles='dashed')
+                        if self.name == 'missing_multiallelic':
+                            colour = 'cornflowerblue' if i % 2 else 'yellowgreen'
+                        else:
+                            colour = 'orange' if i % 2 else 'mediumorchid'
+                        axarr[idx].plot(x, y, color=colour, alpha=0.5, marker='o', markersize=0, linewidth=2)
+                        axarr[idx].plot(x, y, color='black', alpha=0.5, marker='o', markersize=0.5, linewidth=0)
+                        axarr[idx].vlines(x_boundaries, 0, max_y, colors=['lightgrey'], linestyles='solid')
                         axarr[idx].set(ylabel = column_id)
+                        axarr[idx].spines['right'].set_visible(False)
+                        axarr[idx].spines['top'].set_visible(False)
                     else:
                         colour = self.cm(idx / len(column_ids))
-                        #alpha = 0.5 if i % 2 else 0.8
-                        axarr.plot(x_smooth, y_smooth, label=column_id, color=colour, alpha=0.8, marker='o', markersize=0.5, linewidth=1)
+                        axarr.plot(x, y, color=colour, alpha=0.5, marker='o', markersize=0, linewidth=1)
+                        axarr.plot(x, y, color=colour, alpha=1, marker='o', markersize=0.2, linewidth=0)
                         axarr.vlines(x_boundaries, 0, max_y, colors=['lightgrey'], linestyles='dashed', linewidth=1)
                         axarr.set(ylabel = column_id)
+                        axarr.spines['right'].set_visible(False)
+                        axarr.spines['top'].set_visible(False)
                 i += 1
-        plt.tight_layout()
+            if self.subplots:
+                axarr[idx].axhline(y=numpy.mean(y_list), xmin=0, xmax=1, color='darkgrey', linestyle='--', linewidth=2)
+                axarr[idx].set_ylim(min_y, max_y)
+            else:
+                axarr.set_ylim(min_y - (min_y / 100) , max_y + (max_y / 100))
         if self.by_population:
             for population, colour in self.parameterObj.colour_by_population.items():
                 _handles.append(mat.lines.Line2D([0], [0], c=colour, lw=4))
                 _labels.append(population)
-            plt.ylabel(self.name)
+            plt.ylabel(self.name, fontsize=axeslabelfontsize)
         elif self.subplots:
+            plt.ylabel(self.name, fontsize=axeslabelfontsize)
             pass
         else:
+            plt.ylabel(self.name, fontsize=axeslabelfontsize)
             for idx, column_id in enumerate(column_ids):
                 colour = self.cm(idx / len(column_ids))
                 _handles.append(mat.lines.Line2D([0], [0], c=colour, lw=4))
                 _labels.append(column_id)
         if not self.subplots:
-            plt.legend(\
+            plt.legend(fontsize = legendfontsize, \
                 handles=_handles, \
                 labels=_labels, \
-                frameon=True, \
-                fontsize=12)
-        plt.xlabel("Genome coordinate")
+                frameon=True\
+                )
+        plt.xlabel("Genome coordinate", fontsize=axeslabelfontsize)
         fn = "%s.%s.png" % (self.parameterObj.outprefix, self.name) 
+        plt.tight_layout()
         fig.savefig(fn, format="png")
+        plt.close(fig)
         return fn
 
-class PlotCumCovObj():
-    def __init__(self):
-        pass
 
-def calculate_cum_cov(df):
-    percs_by_sample_id = {}
-    counts_by_sample_id = {}
-    sample_ids = df.columns[-(len(df.columns)-6):].tolist()
-    for sample_id in sample_ids:
-        counter = Counter(df[sample_id].tolist())
-        percs_by_sample_id[sample_id] = []
-        counts_by_sample_id[sample_id] = []
-        cum_count = 0
-        for perc, count in sorted(counter.items(), reverse=True):
-            percs_by_sample_id[sample_id].append(perc)
-            counts_by_sample_id[sample_id].append(cum_count)
-            cum_count += count
-    return (sample_ids, percs_by_sample_id, counts_by_sample_id)
+class PlotCovObj():
+    def __init__(self, parameterObj, name, y_label, data):
+        self.parameterObj = parameterObj
+        self.name = name
+        self.y_label = y_label
+        self.genome_length = None
+        self.length_by_pair_count = []
+        self.block_length_by_pair_count = []
+        self.final_length_by_pair_count = []
+        self.length_by_sample_count = []
+        self.block_length_by_sample_count = []
+        self.final_length_by_sample_count = []
+        self.populate(data)
+        self.cm = plt.get_cmap('Set2')
 
-def plot_cumcovdecay(sample_cov_df, test):
-    sample_ids, percs_by_sample_id, counts_by_sample_id = calculate_cum_cov(sample_cov_df)
+    def populate(self, data):
+        self.genome_length = sum([y for x, y in data.length_by_sample_count.items()])
+        for pair_count in range(self.parameterObj.pairs_count, 0, -1):
+            try:
+                self.length_by_pair_count.append(self.length_by_pair_count[-1] + data.length_by_pair_count.get(pair_count, 0.0) / self.genome_length)
+            except IndexError:
+                self.length_by_pair_count.append(data.length_by_pair_count.get(pair_count, 0.0) / self.genome_length)
+            try:
+                self.block_length_by_pair_count.append(self.block_length_by_pair_count[-1] + data.block_length_by_pair_count.get(pair_count, 0.0) / self.genome_length)
+            except IndexError:
+                self.block_length_by_pair_count.append(data.block_length_by_pair_count.get(pair_count, 0.0) / self.genome_length)
+            try:
+                self.final_length_by_pair_count.append(self.final_length_by_pair_count[-1] + data.final_length_by_pair_count.get(pair_count, 0.0) / self.genome_length)
+            except IndexError:
+                self.final_length_by_pair_count.append(data.block_length_by_pair_count.get(pair_count, 0.0) / self.genome_length)
+        for sample_count in range(self.parameterObj.samples_count, 0, -1):
+            try:
+                self.length_by_sample_count.append(self.length_by_sample_count[-1] + data.length_by_sample_count.get(sample_count, 0.0) / self.genome_length)
+            except IndexError:
+                self.length_by_sample_count.append(data.length_by_sample_count.get(sample_count, 0.0) / self.genome_length)
+            try:
+                self.block_length_by_sample_count.append(self.block_length_by_sample_count[-1] + data.block_length_by_sample_count.get(sample_count, 0.0) / self.genome_length)
+            except IndexError:
+                self.block_length_by_sample_count.append(data.block_length_by_sample_count.get(sample_count, 0.0) / self.genome_length)
+            try:
+                self.final_length_by_sample_count.append(self.final_length_by_sample_count[-1] + data.final_length_by_sample_count.get(sample_count, 0.0) / self.genome_length) 
+            except IndexError:
+                self.final_length_by_sample_count.append(data.final_length_by_sample_count.get(sample_count, 0.0) / self.genome_length) 
+            
+    def plot(self, grouping, xlabel, title):
+        categories, y1, y2, y3 = None, None, None, None
+        if grouping == "samples":
+            categories = self.parameterObj.samples_count
+            y1 = self.length_by_sample_count
+            y2 = self.block_length_by_sample_count
+            y3 = self.final_length_by_sample_count
+        else:
+            categories = self.parameterObj.pairs_count
+            y1 = self.length_by_pair_count
+            y2 = self.block_length_by_pair_count
+            y3 = self.final_length_by_pair_count
+        fig = plt.figure(figsize=(16,6), dpi=400, frameon=False)
+        ax = fig.add_subplot(111)
+        #x = [int(_x + 1) for _x in range(categories)]
+        x = list(range(0, categories, 1))
+        colours = [self.cm(idx / 3) for idx in range(3)]
+        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+        ax.set_ylim((-0.05, 1.05))
+        ax.set_xlim((-1, categories))
+        #ax.set_xscale("log")
+        plt.title(title)
+        plt.ylabel(self.y_label, fontsize=axeslabelfontsize)
+        plt.xlabel(xlabel, fontsize=axeslabelfontsize)
+        plt.gca().spines["top"].set_visible(False)  
+        plt.gca().spines["right"].set_visible(False)
+        plt.tight_layout()
+        ax.axhline(y=1.0, xmin=0, xmax=1, color='lightgrey', linestyle='--', linewidth=2)
+        ax.plot(x, y1, '-ok', label="BED Intervals (>=1 b)", color=colours[0], markersize=6, linewidth=6, markerfacecolor='black')
+        plt.legend(fontsize = legendfontsize, loc='lower right', frameon=True)
+        fn = "%s.%s.%s.1.png" % (self.parameterObj.outprefix, self.name, grouping) 
+        fig.savefig(fn, format="png")
+        ax.plot(x, y2, '-ok', label="BED Intervals (>=64 b)", color=colours[1], markersize=6, linewidth=6, markerfacecolor='black')
+        plt.legend(fontsize = legendfontsize, loc='lower right', frameon=True)
+        fn = "%s.%s.%s.2.png" % (self.parameterObj.outprefix, self.name, grouping) 
+        fig.savefig(fn, format="png")
+        ax.plot(x, y3, '-ok', label="Blocktools (64 b)", color=colours[2], markersize=6, linewidth=6, markerfacecolor='black')
+        plt.legend(fontsize = legendfontsize, loc='lower right', frameon=True)
+        fn = "%s.%s.%s.3.png" % (self.parameterObj.outprefix, self.name, grouping) 
+        fig.savefig(fn, format="png")
+        plt.close(fig)
+        return 1
 
-    #matplotlib.rcParams['text.color'] = 'grey'
-    #matplotlib.rc('xtick', labelsize=16) 
-    #matplotlib.rc('ytick', labelsize=16)  
-    #matplotlib.rcParams['axes.edgecolor'] = 'lightgrey'
-    #matplotlib.rcParams['xtick.color'] = 'grey'
-    #matplotlib.rcParams['ytick.color'] = 'grey'
-    #matplotlib.rcParams['font.family'] = 'sans-serif'
-    #matplotlib.rcParams['grid.color'] = 'lightgrey'
-    #plt.set_cmap('viridis')
-    ## Create a figure of given size
-    fig = plt.figure(figsize=(16,6), dpi=400)
-    ## Add a subplot
-    ax = fig.add_subplot(111)
-    _alpha=0.5
-    #
-    _num_lines = len(sample_ids)
-    _line_styles = ['solid', 'dashed', 'dashdot', 'dotted']
-    _num_styles = len(_line_styles)
-    cm = plt.get_cmap('plasma')
-    for idx, sample_id in enumerate(sample_ids):
-        colour = cm(idx // _num_styles * float(_num_styles) / _num_lines)
-        _line_style = _line_styles[idx % _num_styles]
-        ax.plot(counts_by_sample_id[sample_id], percs_by_sample_id[sample_id], color=colour, linestyle=_line_style, label=sample_id, alpha=_alpha, marker='o', linewidth=1, markersize=0)
-    plt.legend(frameon=False, fontsize=12, bbox_to_anchor=(0., 1.02, 1., .102), loc=3, ncol=int(len(sample_ids) / 2), mode="expand", borderaxespad=0.)
-    ##handles, labels = ax.get_legend_handles_labels()
-    ##new_handles = [matplotlib.lines.Line2D([], [], c=h.get_edgecolor()) for h in handles]
-    ##plt.legend(handles=new_handles, labels=labels, frameon=False, fontsize=16 )
-    ## plt.title('Read length distribution of PacBio data', fontsize=20)
-    plt.ylabel('Mean block coverage', fontsize=20, color='grey')
-    plt.xlabel('Windows', fontsize=20, color='grey')
-    ## Remove grid lines (dotted lines inside plot)
-    #ax.grid(False)
-    #ax.set_xlim(xmin=1, xmax=65)
-    ##plt.yscale('log')
-    #ax.set_ylim(ymin=0.1)
-    #plt.gca().spines["top"].set_visible(False)  
-    #plt.gca().spines["right"].set_visible(False)
-#
-    ## Remove plot frame
-    #ax.set_frame_on(False)
-    ## Pandas trick: remove weird dotted line on axis
-    #ax.lines[0].set_visible(False)
-    return fig
+def plot_window_coverage_tsv(parameterObj, sequence_OrdDict):
+    df_window_coverage_tsv = pandas.read_csv( \
+        parameterObj.window_coverage_tsv_f, \
+        sep="\t" \
+        )
+    df_window_coverage_tsv = df_window_coverage_tsv.dropna()
+    df_mean_block_density = df_window_coverage_tsv[df_window_coverage_tsv.columns[3:4].tolist()]
+    plotHistObj = PlotHistObj(parameterObj, "mean_window_density", "Value", "Count", df_mean_block_density)
+    fn_mean_block_density_hist = plotHistObj.plot()
 
+    sample_cov_df_metrics = df_window_coverage_tsv[df_window_coverage_tsv.columns[0:1].tolist() + df_window_coverage_tsv.columns[-(len(df_window_coverage_tsv.columns)-6):].tolist()]
+    plotGenomeObj = PlotGenomeObj(parameterObj, "sample_coverage", sample_cov_df_metrics, sequence_OrdDict, subplots=False, by_population=True)
+    fn_sample_cov_genome = plotGenomeObj.plot()
+    return (fn_mean_block_density_hist, fn_sample_cov_genome)
 
+def plot_pairs_comparison(parameterObj_1, parameterObj_2):
+    df_variant_pairs_1 = pandas.read_csv( \
+        parameterObj_1.variant_pairs_tsv_f, \
+        sep="\t" \
+        )
+    df_variant_pairs_1 = df_variant_pairs_1.dropna()
+    
+    df_variant_pairs_2 = pandas.read_csv( \
+        parameterObj_2.variant_pairs_tsv_f, \
+        sep="\t" \
+        )
+    df_variant_pairs_2 = df_variant_pairs_2.dropna()
+    
+    df_variant_pairs_1_fst = df_variant_pairs_1[['pair_idx', 'f_st']]
+    df_variant_pairs_1_fst.insert(0, 'type', os.path.basename(parameterObj_1.outprefix))
+    df_variant_pairs_2_fst = df_variant_pairs_2[['pair_idx', 'f_st']]
+    df_variant_pairs_2_fst.insert(0, 'type', os.path.basename(parameterObj_2.outprefix))
+    df_variant_pairs_fst = pandas.concat([df_variant_pairs_1_fst, df_variant_pairs_2_fst], axis=0)
+    plotSwarmObj = PlotSwarmObj('pair_fst_comparison', 'F_st %s' % parameterObj_1.outprefix, 'type', 'F_st %s' % parameterObj_1.outprefix, 'f_st', df_variant_pairs_fst)
+    fn = plotSwarmObj.plot(alpha=0.8, points='Pairs')
+
+    df_variant_pairs_1_dxy = df_variant_pairs_1[['pair_idx', 'd_xy']]
+    df_variant_pairs_1_dxy.insert(0, 'type', os.path.basename(parameterObj_1.outprefix))
+    df_variant_pairs_2_dxy = df_variant_pairs_2[['pair_idx', 'd_xy']]
+    df_variant_pairs_2_dxy.insert(0, 'type', os.path.basename(parameterObj_2.outprefix))
+    df_variant_pairs_dxy = pandas.concat([df_variant_pairs_1_dxy, df_variant_pairs_2_dxy], axis=0)
+    plotSwarmObj = PlotSwarmObj('pair_dxy_comparison', 'D_xy %s' % parameterObj_1.outprefix, 'type', 'D_xy %s' % parameterObj_1.outprefix, 'd_xy', df_variant_pairs_dxy)
+    fn = plotSwarmObj.plot(alpha=0.8, points='Pairs')
+    return fn 
+
+def plot_variant_pairs_tsv(parameterObj, sequence_OrdDict):
+    df_variant_pairs = pandas.read_csv( \
+        parameterObj.variant_pairs_tsv_f, \
+        sep="\t" \
+        )
+    df_variant_pairs = df_variant_pairs.dropna()
+
+    df_variant_pairs_piA = df_variant_pairs[df_variant_pairs.columns[0:1].tolist() + df_variant_pairs.columns[9:10].tolist()]
+    plotHeatmapObj = PlotHeatmapObj(parameterObj, 'pi_A', 'piA (as proportion of highest value)', df_variant_pairs_piA)
+    piA_fn = plotHeatmapObj.plot()
+
+    df_variant_pairs_piB = df_variant_pairs[df_variant_pairs.columns[0:1].tolist() + df_variant_pairs.columns[10:11].tolist()]
+    plotHeatmapObj = PlotHeatmapObj(parameterObj, 'pi_B', 'piB (as proportion of highest value)', df_variant_pairs_piB)
+    piB_fn = plotHeatmapObj.plot()
+
+    df_variant_pairs_dxy = df_variant_pairs[df_variant_pairs.columns[0:1].tolist() + df_variant_pairs.columns[11:12].tolist()]
+    plotHeatmapObj = PlotHeatmapObj(parameterObj, 'd_xy', 'Dxy (as proportion of highest value)', df_variant_pairs_dxy)
+    dxy_fn = plotHeatmapObj.plot()
+
+    df_variant_pairs_fst = df_variant_pairs[df_variant_pairs.columns[0:1].tolist() + df_variant_pairs.columns[12:13].tolist()]
+    plotHeatmapObj = PlotHeatmapObj(parameterObj, 'f_st', 'Fst (as proportion of highest value)', df_variant_pairs_fst)
+    fst_fn = plotHeatmapObj.plot()
+
+    #df_pair_fst_vs_bases = df_variant_pairs[df_variant_pairs.columns[2:3].tolist() + df_variant_pairs.columns[12:13].tolist()]
+    #plotScatterObj = PlotScatterObj(parameterObj, 'pair_fst_vs_bases', 'Bases sampled in blocks', 'bases', 'F_st across all blocks', 'f_st', df_pair_fst_vs_bases)
+    #plotScatterObj.plot(alpha=0.8, points='Pairs')
+
+    #df_pair_fst_vs_missing = df_variant_pairs[['missing', 'f_st']]
+    #plotScatterObj = PlotScatterObj(parameterObj, 'pair_fst_vs_missing', 'Proportion of bases with "missing" genotypes', 'missing', 'F_st across all blocks', 'f_st', df_pair_fst_vs_missing)
+    #plotScatterObj.plot(alpha=0.8, points='Pairs')
+
+    #df_pair_fst_vs_multiallelic = df_variant_pairs[['multiallelic', 'f_st']]
+    #plotScatterObj = PlotScatterObj(parameterObj, 'pair_fst_vs_multiallelic', 'Proportion of bases with "multiallelic" genotypes', 'multiallelic', 'F_st across all blocks', 'f_st', df_pair_fst_vs_multiallelic)
+    #plotScatterObj.plot(alpha=0.8, points='Pairs')
+
+    #df_pair_dxy_vs_bases = df_variant_pairs[['bases', 'd_xy']]
+    #plotScatterObj = PlotScatterObj(parameterObj, 'pair_dxy_vs_bases', 'Bases sampled in blocks', 'bases', 'D_xy across all blocks', 'd_xy', df_pair_dxy_vs_bases)
+    #plotScatterObj.plot(alpha=0.8, points='Pairs')
+
+    #df_pair_dxy_vs_missing = df_variant_pairs[['missing', 'd_xy']]
+    #plotScatterObj = PlotScatterObj(parameterObj, 'pair_dxy_vs_missing', 'Proportion of bases with "missing" genotypes', 'missing', 'D_xy across all blocks', 'd_xy', df_pair_dxy_vs_missing)
+    #plotScatterObj.plot(alpha=0.8, points='Pairs')
+
+    #df_pair_dxy_vs_multiallelic = df_variant_pairs[['multiallelic', 'd_xy']]
+    #plotScatterObj = PlotScatterObj(parameterObj, 'pair_dxy_vs_multiallelic', 'Proportion of bases with "multiallelic" genotypes', 'multiallelic', 'D_xy across all blocks', 'd_xy', df_pair_dxy_vs_multiallelic)
+    #plotScatterObj.plot(alpha=0.8, points='Pairs')
+
+    return (piA_fn, piB_fn, dxy_fn, fst_fn)
+
+def plot_coverage(parameterObj, sequence_OrdDict):
+    block_span_df = pandas.read_csv( \
+        parameterObj.block_pairs_f, \
+        sep="\t" \
+        ) 
+    plotHeatmapObj = PlotHeatmapObj(parameterObj, 'bases', 'Blocked span (as proportion of highest value)', block_span_df)
+    fn_block_span_tsv = plotHeatmapObj.plot()
+    block_summary_df = pandas.read_csv( \
+        parameterObj.block_summary_f, \
+        sep="\t" \
+        )
+    final_length_by_sample_count = dict(block_summary_df.groupby('count_samples')['length'].sum())
+    final_length_by_pair_count = dict(block_summary_df.groupby('count_pairs')['length'].sum())
+    coverage_dict = parse_yaml(parameterObj.bed_coverage_f)
+    coverageObj = CoverageObj()
+    coverageObj.set_from_dict(coverage_dict)
+    coverageObj.add_final_lengths(final_length_by_sample_count, final_length_by_pair_count)
+    plotCovObj = PlotCovObj(parameterObj, 'coverage', 'Proportion of genome', coverageObj)
+    plotCovObj.plot('samples', xlabel='Number of missing Samples', title="Proportion of genome visible when allowing for missing Samples")
+    plotCovObj.plot('pairs', xlabel='Number of missing Pairs', title="Proportion of genome visible when allowing for missing Pairs")
+    return fn_block_span_tsv
+
+        
+def plot_window_variant_tsv(parameterObj, sequence_OrdDict):
+    df_window_variant_tsv = pandas.read_csv( \
+        parameterObj.window_variant_tsv_f, \
+        sep="\t" \
+        )
+    df_window_variant_tsv = df_window_variant_tsv.dropna()
+
+    dxy_fst_df = df_window_variant_tsv[['window_id', 'd_xy', 'f_st']]
+    plotGenomeObj = PlotGenomeObj(parameterObj, "dxy_fst", dxy_fst_df, sequence_OrdDict, subplots=True, by_population=False)
+    dxy_fst_fn = plotGenomeObj.plot()
+
+    piA_piB_df = df_window_variant_tsv[['window_id', 'pi_A', 'pi_B']]
+    plotGenomeObj = PlotGenomeObj(parameterObj, "piA_piB", piA_piB_df, sequence_OrdDict, subplots=True, by_population=False)
+    piA_piB_fn = plotGenomeObj.plot()
+
+    profile_df = df_window_fst_vs_missing = df_window_variant_tsv[['window_id', 'missing', 'multiallelic']]
+    plotGenomeObj = PlotGenomeObj(parameterObj, "missing_multiallelic", profile_df, sequence_OrdDict, subplots=True, by_population=False)
+    tuple_fn = plotGenomeObj.plot()
+    
+    profile_df = df_window_fst_vs_missing = df_window_variant_tsv[['window_id', 'hetA', 'hetB', 'hetAB', 'fixed']]
+    plotGenomeObj = PlotGenomeObj(parameterObj, "tuple", profile_df, sequence_OrdDict, subplots=False, by_population=False)
+    tuple_fn = plotGenomeObj.plot()
+
+    df_window_fst_vs_missing = df_window_variant_tsv[['missing', 'f_st']]
+    plotScatterObj = PlotScatterObj(parameterObj, 'window_fst_vs_missing', 'Proportion of bases with "missing" genotypes', 'missing', 'F_st across all blocks', 'f_st', df_window_fst_vs_missing)
+    plotScatterObj.plot(alpha=0.1, points='Window of %s blocks' % parameterObj.window_size)
+
+    df_window_fst_vs_multiallelic = df_window_variant_tsv[['multiallelic', 'f_st']]
+    plotScatterObj = PlotScatterObj(parameterObj, 'window_fst_vs_multiallelic', 'Proportion of bases with "multiallelic" genotypes', 'multiallelic', 'F_st across all blocks', 'f_st', df_window_fst_vs_multiallelic)
+    plotScatterObj.plot(alpha=0.1, points='Window of %s blocks' % parameterObj.window_size)
+
+    df_window_piA_vs_missing = df_window_variant_tsv[['missing', 'pi_A']]
+    plotScatterObj = PlotScatterObj(parameterObj, 'window_piA_vs_missing', 'Proportion of bases with "missing" genotypes', 'missing', 'Pi_A across all blocks', 'pi_A', df_window_piA_vs_missing)
+    plotScatterObj.plot(alpha=0.1, points='Window of %s blocks' % parameterObj.window_size)
+
+    df_window_piA_vs_multiallelic = df_window_variant_tsv[['multiallelic', 'pi_A']]
+    plotScatterObj = PlotScatterObj(parameterObj, 'window_piA_vs_multiallelic', 'Proportion of bases with "multiallelic" genotypes', 'multiallelic', 'Pi_A across all blocks', 'pi_A', df_window_piA_vs_multiallelic)
+    plotScatterObj.plot(alpha=0.1, points='Window of %s blocks' % parameterObj.window_size)
+
+    df_window_dxy_vs_missing = df_window_variant_tsv[['missing', 'd_xy']]
+    plotScatterObj = PlotScatterObj(parameterObj, 'window_dxy_vs_missing', 'Proportion of bases with "missing" genotypes', 'missing', 'D_xy across all blocks', 'd_xy', df_window_dxy_vs_missing)
+    plotScatterObj.plot(alpha=0.1, points='Window of %s blocks' % parameterObj.window_size)
+
+    df_window_dxy_vs_multiallelic = df_window_variant_tsv[['multiallelic', 'd_xy']]
+    plotScatterObj = PlotScatterObj(parameterObj, 'window_dxy_vs_multiallelic', 'Proportion of bases with "multiallelic" genotypes', 'multiallelic', 'D_xy across all blocks', 'd_xy', df_window_dxy_vs_multiallelic)
+    plotScatterObj.plot(alpha=0.1, points='Window of %s blocks' % parameterObj.window_size)
+
+    df_window_fixed_vs_missing = df_window_variant_tsv[['missing', 'fixed']]
+    plotScatterObj = PlotScatterObj(parameterObj, 'window_fixed_vs_missing', 'Proportion of bases with "missing" genotypes', 'missing', 'Fixed mutations across all blocks', 'fixed', df_window_fixed_vs_missing)
+    plotScatterObj.plot(alpha=0.1, points='Window of %s blocks' % parameterObj.window_size)
+
+    df_window_fixed_vs_multiallelic = df_window_variant_tsv[['multiallelic', 'fixed']]
+    plotScatterObj = PlotScatterObj(parameterObj, 'window_fixed_vs_multiallelic', 'Proportion of bases with "multiallelic" genotypes', 'multiallelic', 'Fixed mutations across all blocks', 'fixed', df_window_fixed_vs_multiallelic)
+    plotScatterObj.plot(alpha=0.1, points='Window of %s blocks' % parameterObj.window_size)
+
+    df_window_hetAB_vs_missing = df_window_variant_tsv[['missing', 'hetAB']]
+    plotScatterObj = PlotScatterObj(parameterObj, 'window_hetAB_vs_missing', 'Proportion of bases with "missing" genotypes', 'missing', 'HetAB mutations across all blocks', 'hetAB', df_window_hetAB_vs_missing)
+    plotScatterObj.plot(alpha=0.1, points='Window of %s blocks' % parameterObj.window_size)
+
+    df_window_hetAB_vs_multiallelic = df_window_variant_tsv[['multiallelic', 'hetAB']]
+    plotScatterObj = PlotScatterObj(parameterObj, 'window_hetAB_vs_multiallelic', 'Proportion of bases with "multiallelic" genotypes', 'multiallelic', 'HetAB mutations across all blocks', 'hetAB', df_window_hetAB_vs_multiallelic)
+    plotScatterObj.plot(alpha=0.1, points='Window of %s blocks' % parameterObj.window_size)
+
+    return (dxy_fst_fn, piA_piB_fn, tuple_fn)
 
 
 #########################
@@ -425,6 +654,9 @@ CONFIG_BY_ZYGOSITY = {
 
 def pairs_to_samples(pair_idxs, parameterObj):
     return set(chain.from_iterable([parameterObj.sample_idxs_by_pair_idx[pair_idx] for pair_idx in pair_idxs]))
+
+def get_pair_id(pair_id, idx, parameterObj):
+    return parameterObj.pair_ids_by_pair_idx[pair_id][idx]
 
 def write_yaml(data, yaml_f):
     with open(yaml_f, 'w') as yaml_fh:
@@ -519,31 +751,99 @@ def parse_multibed_f(parameterObj, sequence_OrdDict):
     # compute length column
     df['length'] =  df['end'] - df['start']
     # filter intervals shorter than MIN_INTERVAL_LEN
-    df = df[df['length'] >= parameterObj.min_interval_len]
+    # df = df[df['length'] >= parameterObj.min_interval_len]
+    # samples to frozenset
+    df['samples_idxs'] = df['samples'].apply(\
+        generate_sample_idxs, \
+        sample_idx_by_sample_id=parameterObj.sample_idx_by_sample_id\
+        )
     # generate pairs in dataframe based on combo-intersect
     df['pair_idxs'] = df['samples'].apply(\
-        generate_pairs, \
+        generate_pair_idxs, \
         pops_count=parameterObj.pops_count, \
         pair_idx_by_pair_ids=parameterObj.pair_idx_by_pair_ids\
         )
     # Drop intervals that don't affect pairs
-    df = df.dropna()
-    # now do area (length x pair_idxs) 
-    # df['area'] = df['samples'].apply(generate_samples, sample_idx_by_sample_id=parameterObj.sample_idx_by_sample_id)
+    # df = df.dropna()
+    
     # compute distance to next interval
-    df['distance'] = numpy.where((df['chrom'] == df['chrom'].shift(-1)), df['start'].shift(-1) - df['end'] , numpy.nan)
+    df['distance'] = numpy.where((df['chrom'] == df['chrom'].shift(-1)), df['start'].shift(-1) - df['end'], numpy.nan)
     #spanObj = SpanObj('raw')
     idx = 0
     regionBatchObjs = deque()
     regionBatchObj = RegionBatchObj(idx)
-    for chrom, start, end, sample_idxs, length, pair_idxs, distance in tqdm(df.values.tolist(), total=len(df.index), desc="[%] ", ncols=200):
-        bedObj = BedObj(chrom, start, end, pair_idxs, length) 
-        regionBatchObj.add_bedObj_to_batch(bedObj)
-        if numpy.isnan(distance) or distance > parameterObj.max_interval_distance:
-            regionBatchObjs.append(regionBatchObj)
-            idx += 1
-            regionBatchObj = RegionBatchObj(idx)
-    return regionBatchObjs#, spanObj
+    coverageObj = CoverageObj()
+    coverageObj.set_genome_length(sequence_OrdDict) # better: record BED intervals for each contig
+    for chrom, start, end, samples, length, sample_idxs, pair_idxs, distance in tqdm(df.values.tolist(), total=len(df.index), desc="[%] ", ncols=200):
+        if not pair_idxs is numpy.nan:
+            pair_count = len(pair_idxs)
+            coverageObj.add_pair_region(pair_count, length)
+            if length >= parameterObj.block_length:
+                coverageObj.add_pair_region_block_size(pair_count, int(length / parameterObj.block_length) * parameterObj.block_length)
+            if length >= parameterObj.min_interval_len:
+                bedObj = BedObj(chrom, start, end, pair_idxs, length) 
+                if not regionBatchObj.contig_id:
+                    regionBatchObj.add_bedObj_to_batch(bedObj)
+                else:
+                    if chrom == regionBatchObj.contig_id and not numpy.isnan(distance) and int(distance) <= parameterObj.max_interval_distance:
+                        regionBatchObj.add_bedObj_to_batch(bedObj)
+                    else:
+                        regionBatchObjs.append(regionBatchObj)
+                        idx += 1
+                        regionBatchObj = RegionBatchObj(idx)
+                        regionBatchObj.add_bedObj_to_batch(bedObj)
+                #if numpy.isnan(distance) or int(distance) > parameterObj.max_interval_distance:
+        
+        sample_count = len(sample_idxs)
+        coverageObj.add_sample_region(sample_count, length)
+        if length >= parameterObj.block_length:
+            coverageObj.add_sample_region_block_size(sample_count, int(length / parameterObj.block_length) * parameterObj.block_length)
+    if regionBatchObj.contig_id:
+        regionBatchObjs.append(regionBatchObj)
+    #for x in regionBatchObjs:
+    #    print(x)
+        #for y in x.bedObjs:
+        #    print(y)
+
+    # awk '{if($3-$2>=65){a[$4]+=$3-$2;}}END{for (i in a)print i", "a[i];}' data/input/tiny/hmel.autosomes.tiny.multiinter.samples_as_string.bed
+    return regionBatchObjs, coverageObj
+
+class CoverageObj():
+    
+    def __init__(self):
+        self.length_by_pair_count = {}
+        self.block_length_by_pair_count = {}
+        self.length_by_sample_count = {}
+        self.block_length_by_sample_count = {}
+        self.genome_length = None
+        self.final_length_by_sample_count = {}
+        self.final_length_by_pair_count = {}
+
+    def set_from_dict(self, coverage_dict):
+        self.length_by_pair_count = coverage_dict["length_by_pair_count"]
+        self.block_length_by_pair_count = coverage_dict["block_length_by_pair_count"]
+        self.length_by_sample_count = coverage_dict["length_by_sample_count"]
+        self.block_length_by_sample_count = coverage_dict["block_length_by_sample_count"]
+        self.genome_length = coverage_dict["genome_length"]
+
+    def add_final_lengths(self, final_length_by_sample_count, final_length_by_pair_count):
+        self.final_length_by_sample_count = final_length_by_sample_count
+        self.final_length_by_pair_count = final_length_by_pair_count
+
+    def set_genome_length(self, sequence_OrdDict):
+        self.genome_length = sum(sequence_OrdDict.values())
+
+    def add_sample_region_block_size(self, sample_count, length):
+        self.block_length_by_sample_count[sample_count] = self.block_length_by_sample_count.get(sample_count, 0) + length
+
+    def add_pair_region_block_size(self, pair_count, length):
+        self.block_length_by_pair_count[pair_count] = self.block_length_by_pair_count.get(pair_count, 0) + length
+
+    def add_sample_region(self, sample_count, length):
+        self.length_by_sample_count[sample_count] = self.length_by_sample_count.get(sample_count, 0) + length
+
+    def add_pair_region(self, pair_count, length):
+        self.length_by_pair_count[pair_count] = self.length_by_pair_count.get(pair_count, 0) + length
 
 def load_profileObjs(parameterObj, blockDataObj):
     profile_df = pandas.read_csv(\
@@ -623,7 +923,7 @@ def load_blockDataObj(parameterObj):
     blockDataObj.add_blockObjs(blockObjs)
     return blockDataObj
 
-def generate_pairs(sample_string, **kwargs):
+def generate_pair_idxs(sample_string, **kwargs):
     # generates pairs of interval and returns them as set of idx
     pair_idxs = frozenset(filter(lambda x: x >= 0, [kwargs['pair_idx_by_pair_ids'].get(frozenset(x), -1) for x in combinations(sample_string.split(","), kwargs['pops_count'])])) 
     if pair_idxs:
@@ -631,7 +931,7 @@ def generate_pairs(sample_string, **kwargs):
     else:
         return numpy.nan
 
-def generate_samples(sample_string, **kwargs):
+def generate_sample_idxs(sample_string, **kwargs):
     sample_idxs = frozenset([kwargs['sample_idx_by_sample_id'][sample_id] for sample_id in sample_string.split(",") if sample_id in kwargs['sample_idx_by_sample_id']])
     if sample_idxs:
         return sample_idxs
@@ -654,30 +954,38 @@ def make_blocks(parameterObj, regionBatchObjs):
     else:
         sys.exit('[X] You broke my software ...')
     _temp = []
+    print("[+] Analysing %s regionBatchObjs on %s threads ..." % (len(regionBatchObjs), parameterObj.threads))
     if parameterObj.threads < 2:
         with tqdm(total=len(regionBatchObjs), desc="[%] ", ncols=200, unit_scale=True) as pbar:
             for regionBatchObj in regionBatchObjs:
-                blockObjs = algorithm((regionBatchObj, parameterObj))
-                _temp.extend(blockObjs)
-                #for blockObj in blockObjs:
-                #    print("[DONE]", blockObj)
+                if regionBatchObj.length() >= parameterObj.block_length:
+                    blockObjs = algorithm((regionBatchObj, parameterObj))
+                    #print(type(blockObjs))
+                    _temp.append(blockObjs)
+                    #for blockObj in blockObjs:
+                    #    print("[DONE]", blockObj)
                 pbar.update()
     else:
         # if multiple threads then arguments have to be passed to algorithm
-        params = [(regionBatchObj, parameterObj) for regionBatchObj in regionBatchObjs]
+        params = [(regionBatchObj, parameterObj) for regionBatchObj in regionBatchObjs if regionBatchObj.length() >= parameterObj.block_length]
         with poolcontext(processes=parameterObj.threads) as pool:
-            with tqdm(total=len(regionBatchObjs), desc="[%] ", ncols=200, unit_scale=True) as pbar:
+            with tqdm(total=len(params), desc="[%] ", ncols=200, unit_scale=True) as pbar:
                 for blockObjs in pool.imap_unordered(algorithm, params):
-                    _temp.extend(blockObjs)
+                    #print(type(blockObjs))
+                    _temp.append(blockObjs)
+                    #for blockObj in blockObjs:
+                        #print("[DONE]", blockObj)
                     pbar.update()
+    #print("[+] Generated %s blocks ..." % len(_temp))
+    flat_list = [_list for sublist in _temp for _list in sublist]
     blockDataObj = BlockDataObj(parameterObj) 
-    blockDataObj.add_blockObjs(_temp)
+    blockDataObj.add_blockObjs(flat_list)
     return blockDataObj
 
 def block_algorithm_a(params):
     regionBatchObj, parameterObj = params
     block_idx = 0
-    blockObjs = []
+    blockObjs = deque()
     #print("[R]", regionBatchObj)
     while 1:
         try:
@@ -722,6 +1030,7 @@ def block_algorithm_b(params):
             bedObj = regionBatchObj.bedObjs.popleft()
             #print("->", bedObj)
             bedObj_score = (len(bedObj.pair_idxs) / parameterObj.pairs_count) * (min(bedObj.length, blockObj.needed) / parameterObj.block_length)
+            #bedObj_score = (len(bedObj.pair_idxs) / parameterObj.pairs_count) * parameterObj.block_length
             remainder_bedObj = blockObj.add_bedObj(bedObj, parameterObj)
             if blockObj.score >= bedObj_score:
                 if not blockObj.needed:
@@ -907,7 +1216,6 @@ def transform_coordinates(parameterObj, blockDataObj, coordinateTransformObj):
 
 def transform_coordinates_blockObj(params):
     blockObj, coordinateTransformObj = params
-    #print(blockObj)
     #print(">", blockObj.contig_id, blockObj.start, blockObj.end)
     _contig_id, _start, _end = coordinateTransformObj.transform_coordinates(blockObj.contig_id, int(blockObj.start), int(blockObj.end))
     #print("<", _contig_id, _start, _end)
@@ -927,7 +1235,27 @@ def transform_coordinates_blockObj(params):
 def make_windows(parameterObj, blockDataObj):
     windowDataObj = WindowDataObj()
     _lol = []
-    params = [(parameterObj, blockDataObj.blockObjs[start:end]) for start, end in blockDataObj.blockObj_idxs]
+    # split big chroms further since otherwise
+
+    params = []
+    # for each chrom
+    for start, end in blockDataObj.blockObj_idxs:
+        #print("# Length: %s from %s to %s" % (len(blockDataObj.blockObjs[start:end]), start, end))
+        chunk = parameterObj.window_size 
+        if len(blockDataObj.blockObjs[start:end]) > chunk:
+            init, stop = 0, 0
+            _buffer = 0
+            for i in range(start, end, chunk):
+                init = i + _buffer
+                stop = i + 2 * chunk + _buffer
+                #print(init, stop)
+                if stop > end:
+                    stop = end
+                params.append((parameterObj, blockDataObj.blockObjs[init:stop]))
+                _buffer += parameterObj.window_overlap
+        else:
+            params.append((parameterObj, blockDataObj.blockObjs[start:end]))
+    print(memory_usage_psutil())
     if parameterObj.threads < 2:
         with tqdm(total=len(params), desc="[%] ", ncols=200, unit_scale=True) as pbar:
             for param in params:
@@ -944,16 +1272,18 @@ def make_windows(parameterObj, blockDataObj):
                     pbar.update()
     flat_list = list(chain.from_iterable(_lol))
     windowDataObj.add_windowObjs(flat_list)
+    print(memory_usage_psutil())
     return windowDataObj
 
 def window_algorithm(params):
     _windowObjs = []
-    parameterObj, blockObjs = params
+    parameterObj, blockObjs = params[0], params[1]
     for i in range(0, len(blockObjs), parameterObj.window_overlap):
         if (len(blockObjs) - i) < parameterObj.window_size:
             break
         else:
             windowObj = WindowObj(blockObjs[0].contig_id, blockObjs[i : i + parameterObj.window_size], parameterObj.block_length)
+            #print(i, i + parameterObj.window_size, windowObj)
             _windowObjs.append(windowObj)
     return _windowObjs
 
@@ -1039,7 +1369,7 @@ class ParameterObj(object):
         self.coordinate_f = check_file(args.get('--coordinates', None))
         self.new_bed_f = check_file(args.get('--bed', None))
         # analysis parameters
-        self.threads = int(args['--threads']) if '--threads' in args else 1
+        self.threads = int(args['--threads']) - 1 if '--threads' in args else 1
         self.algorithm = args['--algorithm']
         self.block_length = int(args['--block_length'])
         self.min_interval_len = int(args['--min_interval_len'])
@@ -1068,6 +1398,7 @@ class ParameterObj(object):
         self.pairs_count = len(self.pair_ids)
         self.pair_idxs = [pair_idx for pair_idx, pair_id in enumerate(self.pair_ids)]
         self.pair_idx_by_pair_ids = {frozenset(pair_id): pair_idx for pair_idx, pair_id in zip(self.pair_idxs, self.pair_ids)}
+        print(self.pair_idx_by_pair_ids)
         self.pair_ids_by_pair_idx = {pair_idx: pair_id for pair_idx, pair_id in zip(self.pair_idxs, self.pair_ids)}
         self.sample_idxs_by_pair_idx = {pair_idx: (self.sample_idx_by_sample_id[pair_id[0]], self.sample_idx_by_sample_id[pair_id[1]]) for pair_idx, pair_id in zip(self.pair_idxs, self.pair_ids)}
         
@@ -1078,6 +1409,7 @@ class ParameterObj(object):
         self.block_void_bed_f = "%s.block.void.bed" % (self.outprefix)
         self.block_summary_f = "%s.block.summary.tsv" % (self.outprefix)
         self.block_pairs_f = "%s.block.pairs.tsv" % (self.outprefix)
+        self.bed_coverage_f = "%s.bed_coverage.txt" % (self.outprefix)
         self.variant_blocks_tsv_f = "%s.variant.blocks.tsv" % (self.outprefix)
         self.variant_pairs_tsv_f = "%s.variant.pairs.tsv" % (self.outprefix)
         self.window_coverage_tsv_f = "%s.window.coverage.tsv" % (self.outprefix)
@@ -1325,7 +1657,7 @@ class BlockDataObj(object):
 
     def write_block_summary(self, parameterObj):
         lines_tsv = []
-        lines_tsv.append("%s" % ("\t".join(["block_id", "length", "span", "count_samples", " count_pairs", "samples", "pairs"])))
+        lines_tsv.append("%s" % ("\t".join(["block_id", "length", "span", "count_samples", "count_pairs", "samples", "pairs"])))
         for blockObj in sorted(self.blockObjs, key=lambda i: (i.contig_id, i.start)):
             lines_tsv.append("\t".join([str(x) for x in [blockObj.block_id, blockObj.length, blockObj.span, len(blockObj.sample_idxs), len(blockObj.pair_idxs), ",".join([str(x) for x in sorted(blockObj.sample_idxs)]), ",".join([str(x) for x in sorted(blockObj.pair_idxs)])]]))
         fn_tsv = parameterObj.block_summary_f
@@ -1421,8 +1753,8 @@ class WindowDataObj(object):
             sample_covs = []
             data_window_sfs_tally[window_id] = dict(windowObj.sfs_tally)
             for sample_id in parameterObj.sample_ids:
-                sample_idx = parameterObj.sample_idx_by_sample_id[sample_id]
-                sample_covs.append("%.2f" % (windowObj.cov_by_sample_idx.get(sample_idx, 0) / parameterObj.window_size))
+                _sample_idx = parameterObj.sample_idx_by_sample_id[sample_id]
+                sample_covs.append("%.2f" % (windowObj.cov_by_sample_idx.get(_sample_idx, 0) / parameterObj.window_size))
             data_window_metrics_tsv.append( \
                 "%s" % "\t".join([\
                     window_id, \
@@ -1494,6 +1826,9 @@ class WindowObj(object):
         self.cov_by_pair_idx = {}
         self.bed_tuples = []
         self.populate(blockObjs, block_length)
+
+    def __str__(self):
+        return self.window_id
 
     def populate(self, blockObjs, block_length):
         sfs_list = []
