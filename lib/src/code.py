@@ -27,22 +27,31 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 plt.style.use('seaborn-white')
 #mat.rcParams['font'] = 16
+#print(mat.rcParams.keys())
 mat.rcParams['text.color'] = 'grey'
 mat.rcParams['axes.edgecolor'] = 'lightgrey'
 mat.rcParams['xtick.color'] = 'grey'
 mat.rcParams['ytick.color'] = 'grey'
 mat.rcParams['grid.color'] = 'lightgrey'
+mat.rcParams['font.family'] = 'sans-serif'
 legendfontsize = 18
 axestickfontsize = 16
 axeslabelfontsize = 16
 mat.rcParams['xtick.labelsize'] = axestickfontsize
 mat.rcParams['ytick.labelsize'] = axestickfontsize
-#mat.rcParams['font.family'] = "serif"
+mat.rcParams['figure.frameon'] = False
+mat.rcParams['axes.grid'] = False
 
 '''
+ax.grid(True)
+plt.gca().spines["top"].set_visible(False)  
+plt.gca().spines["right"].set_visible(False)
+ax.set_frame_on(False)
+ax.lines[0].set_visible(False)
 
 [Notes]
 
+- 
 - test dataset (only chr1 & chr3)
 
 > awk '$1=="chr1" || $1=="chr3"' ../../input/Hmel2.chromTransfers.2016_09_20.txt | cut -f4 | sort | uniq > chr1_chr3.contigs.txt
@@ -60,7 +69,7 @@ mat.rcParams['ytick.labelsize'] = axestickfontsize
 
 - report stats on average hetA, hetAb, hetB, fixed
  
-- make a tree of pairwise dxy
+- make a tree of pairwise dxy : phylip, which format?
 - astral/dadi/twist/discovista
 - change algoA so that it gets invoked if BLOCKLENGTH ≥ MIN_INTERVAL_LENGTH
 - Check how it works with 1bp blocks?
@@ -129,6 +138,8 @@ class PlotSwarmObj():
             showcaps=False,boxprops={'facecolor':'None', 'edgecolor':'None'},
             showfliers=False,whiskerprops={'linewidth':0})
         fn = "%s.png" % (self.name) 
+        plt.gca().spines["top"].set_visible(False)  
+        plt.gca().spines["right"].set_visible(False)
         fig.savefig(fn, format="png")
         plt.close(fig)
         return fn
@@ -229,6 +240,8 @@ class PlotHistObj():
         plt.ylabel(self.y_label, fontsize=axeslabelfontsize)
         plt.xlabel(self.x_label, fontsize=axeslabelfontsize)
         fn = "%s.%s.png" % (self.parameterObj.outprefix, self.name) 
+        #plt.gca().spines["top"].set_visible(False)  
+        #plt.gca().spines["right"].set_visible(False)
         plt.tight_layout()
         fig.savefig(fn, format="png")
         plt.close(fig)
@@ -271,7 +284,8 @@ class PlotGenomeObj():
             fig, axarr = plt.subplots(len(column_ids), 1, sharex=True, figsize=(24,(len(column_ids) * 6)), dpi=200)
         x_by_contig_id, y_by_contig_id_by_column_id, x_boundaries = self.get_data(column_ids, row_id)
         #print(x_by_contig_id, y_by_contig_id_by_column_id, x_boundaries)
-        
+        plt.gca().spines["top"].set_visible(False)  
+        plt.gca().spines["right"].set_visible(False)
         max_y = 0.0
         min_y = 1.0
         _handles, _labels = [], []
@@ -290,46 +304,36 @@ class PlotGenomeObj():
                         min_y = min(y)
                     if self.by_population:
                         colour = self.parameterObj.colour_by_population[self.parameterObj.population_by_sample_id[column_id]]
-                        #axarr.plot(x_smooth, y_smooth, label=column_id, color=colour, alpha=0.8, marker='o', markersize=0.5, linewidth=1)
                         axarr.plot(x, y, color=colour, alpha=0.5, marker='o', markersize=0.2, linewidth=0)
-                        axarr.vlines(x_boundaries, 0, max_y, colors=['white'], linestyles='dashed', linewidth=1)
+                        axarr.vlines(x_boundaries, 0, max_y, colors=['lightgrey'], linestyles='dashed', linewidth=1)
                         axarr.set(ylabel = column_id)
+                        axarr.spines['right'].set_visible(False)
+                        axarr.spines['top'].set_visible(False)
                     elif self.subplots:
                         if self.name == 'missing_multiallelic':
                             colour = 'cornflowerblue' if i % 2 else 'yellowgreen'
                         else:
                             colour = 'orange' if i % 2 else 'mediumorchid'
-                        #if len(y) > 10000:
-                        #    random_indexes = sorted(random.sample(range(len(y)), floor(len(y) * 0.4)))
-                        #    x_smooth = [x[j] for j in random_indexes]
-                        #    y_smooth = [y[j] for j in random_indexes]
-                        #    axarr[idx].plot(x_smooth, y_smooth, color=colour, alpha=0.5, marker='o', markersize=0, linewidth=2)
-                        #else:
-                        #    axarr[idx].plot(x, y, color=colour, alpha=0.5, marker='o', markersize=0, linewidth=2)
                         axarr[idx].plot(x, y, color=colour, alpha=0.5, marker='o', markersize=0, linewidth=2)
                         axarr[idx].plot(x, y, color='black', alpha=0.5, marker='o', markersize=0.5, linewidth=0)
-                        axarr[idx].vlines(x_boundaries, 0, max_y, colors=['white'], linestyles='solid')
+                        axarr[idx].vlines(x_boundaries, 0, max_y, colors=['lightgrey'], linestyles='solid')
                         axarr[idx].set(ylabel = column_id)
+                        axarr[idx].spines['right'].set_visible(False)
+                        axarr[idx].spines['top'].set_visible(False)
                     else:
                         colour = self.cm(idx / len(column_ids))
-                        #if len(y) > 10000:
-                        #    random_indexes = sorted(random.sample(range(len(y)), floor(len(y) * 0.05) ))
-                        #    x_smooth = [x[j] for j in random_indexes]
-                        #    y_smooth = [y[j] for j in random_indexes]
-                        #    axarr.plot(x_smooth, y_smooth, color=colour, alpha=0.5, marker='o', markersize=0, linewidth=1)
-                        #else:
-                        #    axarr.plot(x, y, color=colour, alpha=0.5, marker='o', markersize=0, linewidth=1)
                         axarr.plot(x, y, color=colour, alpha=0.5, marker='o', markersize=0, linewidth=1)
                         axarr.plot(x, y, color=colour, alpha=1, marker='o', markersize=0.2, linewidth=0)
-                        axarr.vlines(x_boundaries, 0, max_y, colors=['white'], linestyles='dashed', linewidth=1)
+                        axarr.vlines(x_boundaries, 0, max_y, colors=['lightgrey'], linestyles='dashed', linewidth=1)
                         axarr.set(ylabel = column_id)
+                        axarr.spines['right'].set_visible(False)
+                        axarr.spines['top'].set_visible(False)
                 i += 1
             if self.subplots:
                 axarr[idx].axhline(y=numpy.mean(y_list), xmin=0, xmax=1, color='darkgrey', linestyle='--', linewidth=2)
                 axarr[idx].set_ylim(min_y, max_y)
             else:
                 axarr.set_ylim(min_y - (min_y / 100) , max_y + (max_y / 100))
-        plt.tight_layout()
         if self.by_population:
             for population, colour in self.parameterObj.colour_by_population.items():
                 _handles.append(mat.lines.Line2D([0], [0], c=colour, lw=4))
@@ -352,6 +356,7 @@ class PlotGenomeObj():
                 )
         plt.xlabel("Genome coordinate", fontsize=axeslabelfontsize)
         fn = "%s.%s.png" % (self.parameterObj.outprefix, self.name) 
+        plt.tight_layout()
         fig.savefig(fn, format="png")
         plt.close(fig)
         return fn
@@ -413,7 +418,7 @@ class PlotCovObj():
             y1 = self.length_by_pair_count
             y2 = self.block_length_by_pair_count
             y3 = self.final_length_by_pair_count
-        fig = plt.figure(figsize=(12,8), dpi=400, frameon=False)
+        fig = plt.figure(figsize=(16,6), dpi=400, frameon=False)
         ax = fig.add_subplot(111)
         #x = [int(_x + 1) for _x in range(categories)]
         x = list(range(0, categories, 1))
@@ -425,7 +430,10 @@ class PlotCovObj():
         plt.title(title)
         plt.ylabel(self.y_label, fontsize=axeslabelfontsize)
         plt.xlabel(xlabel, fontsize=axeslabelfontsize)
-        ax.hlines(1.0, 0.0, categories + 1, linestyles='dashed', colors='lightgrey', linewidth=2)
+        plt.gca().spines["top"].set_visible(False)  
+        plt.gca().spines["right"].set_visible(False)
+        plt.tight_layout()
+        ax.axhline(y=1.0, xmin=0, xmax=1, color='lightgrey', linestyle='--', linewidth=2)
         ax.plot(x, y1, '-ok', label="BED Intervals (>=1 b)", color=colours[0], markersize=6, linewidth=6, markerfacecolor='black')
         plt.legend(fontsize = legendfontsize, loc='lower right', frameon=True)
         fn = "%s.%s.%s.1.png" % (self.parameterObj.outprefix, self.name, grouping) 
@@ -437,7 +445,6 @@ class PlotCovObj():
         ax.plot(x, y3, '-ok', label="Blocktools (64 b)", color=colours[2], markersize=6, linewidth=6, markerfacecolor='black')
         plt.legend(fontsize = legendfontsize, loc='lower right', frameon=True)
         fn = "%s.%s.%s.3.png" % (self.parameterObj.outprefix, self.name, grouping) 
-        plt.tight_layout()
         fig.savefig(fn, format="png")
         plt.close(fig)
         return 1
@@ -566,11 +573,11 @@ def plot_window_variant_tsv(parameterObj, sequence_OrdDict):
         )
     df_window_variant_tsv = df_window_variant_tsv.dropna()
 
-    dxy_fst_df = df_window_variant_tsv[df_window_variant_tsv.columns[0:1].tolist() + df_window_variant_tsv.columns[9:11].tolist()]
+    dxy_fst_df = df_window_variant_tsv[['window_id', 'd_xy', 'f_st']]
     plotGenomeObj = PlotGenomeObj(parameterObj, "dxy_fst", dxy_fst_df, sequence_OrdDict, subplots=True, by_population=False)
     dxy_fst_fn = plotGenomeObj.plot()
 
-    piA_piB_df = df_window_variant_tsv[df_window_variant_tsv.columns[0:1].tolist() + df_window_variant_tsv.columns[7:9].tolist()]
+    piA_piB_df = df_window_variant_tsv[['window_id', 'pi_A', 'pi_B']]
     plotGenomeObj = PlotGenomeObj(parameterObj, "piA_piB", piA_piB_df, sequence_OrdDict, subplots=True, by_population=False)
     piA_piB_fn = plotGenomeObj.plot()
 
@@ -1391,6 +1398,7 @@ class ParameterObj(object):
         self.pairs_count = len(self.pair_ids)
         self.pair_idxs = [pair_idx for pair_idx, pair_id in enumerate(self.pair_ids)]
         self.pair_idx_by_pair_ids = {frozenset(pair_id): pair_idx for pair_idx, pair_id in zip(self.pair_idxs, self.pair_ids)}
+        print(self.pair_idx_by_pair_ids)
         self.pair_ids_by_pair_idx = {pair_idx: pair_id for pair_idx, pair_id in zip(self.pair_idxs, self.pair_ids)}
         self.sample_idxs_by_pair_idx = {pair_idx: (self.sample_idx_by_sample_id[pair_id[0]], self.sample_idx_by_sample_id[pair_id[1]]) for pair_idx, pair_id in zip(self.pair_idxs, self.pair_ids)}
         
