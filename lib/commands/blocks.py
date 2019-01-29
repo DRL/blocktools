@@ -15,6 +15,12 @@ def task_parse_parameters(args):
     print("[#] Parsing parameters ...")
     parameterObj = parse_parameters(args)
     print("[+] Read parameters in %.3fs (%.2fMB)" % (timer() - start, memory_usage_psutil()))
+    start = timer()
+    fn_sample_ids = parameterObj.write_sample_ids()
+    print("[+] Wrote '%s' in %.3fs (%.2fMB)" % (fn_sample_ids, timer() - start, memory_usage_psutil()))
+    start = timer()
+    fn_pair_ids = parameterObj.write_pair_ids()
+    print("[+] Wrote '%s' in %.3fs (%.2fMB)" % (fn_pair_ids, timer() - start, memory_usage_psutil()))
     return parameterObj
 
 def task_parse_genome_f(parameterObj):

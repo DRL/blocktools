@@ -27,7 +27,7 @@ from timeit import default_timer as timer
 
 def main():
     try:
-        __version__ = '0.7.0'
+        __version__ = '0.8.0'
         start_time = timer()
         args = docopt(__doc__, version=__version__, options_first=True)
         if args['<module>'] == 'blocks':

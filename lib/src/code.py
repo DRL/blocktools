@@ -15,6 +15,7 @@ from natsort import natsorted
 #import operator
 from itertools import combinations, product, chain
 import copy
+import pickle
 #from scipy.interpolate import BSpline
 
 ########################### PLOT
@@ -516,30 +517,6 @@ def plot_variant_pairs_tsv(parameterObj, sequence_OrdDict):
     df_variant_pairs_fst = df_variant_pairs[df_variant_pairs.columns[0:1].tolist() + df_variant_pairs.columns[12:13].tolist()]
     plotHeatmapObj = PlotHeatmapObj(parameterObj, 'f_st', 'Fst (as proportion of highest value)', df_variant_pairs_fst)
     fst_fn = plotHeatmapObj.plot()
-
-    #df_pair_fst_vs_bases = df_variant_pairs[df_variant_pairs.columns[2:3].tolist() + df_variant_pairs.columns[12:13].tolist()]
-    #plotScatterObj = PlotScatterObj(parameterObj, 'pair_fst_vs_bases', 'Bases sampled in blocks', 'bases', 'F_st across all blocks', 'f_st', df_pair_fst_vs_bases)
-    #plotScatterObj.plot(alpha=0.8, points='Pairs')
-
-    #df_pair_fst_vs_missing = df_variant_pairs[['missing', 'f_st']]
-    #plotScatterObj = PlotScatterObj(parameterObj, 'pair_fst_vs_missing', 'Proportion of bases with "missing" genotypes', 'missing', 'F_st across all blocks', 'f_st', df_pair_fst_vs_missing)
-    #plotScatterObj.plot(alpha=0.8, points='Pairs')
-
-    #df_pair_fst_vs_multiallelic = df_variant_pairs[['multiallelic', 'f_st']]
-    #plotScatterObj = PlotScatterObj(parameterObj, 'pair_fst_vs_multiallelic', 'Proportion of bases with "multiallelic" genotypes', 'multiallelic', 'F_st across all blocks', 'f_st', df_pair_fst_vs_multiallelic)
-    #plotScatterObj.plot(alpha=0.8, points='Pairs')
-
-    #df_pair_dxy_vs_bases = df_variant_pairs[['bases', 'd_xy']]
-    #plotScatterObj = PlotScatterObj(parameterObj, 'pair_dxy_vs_bases', 'Bases sampled in blocks', 'bases', 'D_xy across all blocks', 'd_xy', df_pair_dxy_vs_bases)
-    #plotScatterObj.plot(alpha=0.8, points='Pairs')
-
-    #df_pair_dxy_vs_missing = df_variant_pairs[['missing', 'd_xy']]
-    #plotScatterObj = PlotScatterObj(parameterObj, 'pair_dxy_vs_missing', 'Proportion of bases with "missing" genotypes', 'missing', 'D_xy across all blocks', 'd_xy', df_pair_dxy_vs_missing)
-    #plotScatterObj.plot(alpha=0.8, points='Pairs')
-
-    #df_pair_dxy_vs_multiallelic = df_variant_pairs[['multiallelic', 'd_xy']]
-    #plotScatterObj = PlotScatterObj(parameterObj, 'pair_dxy_vs_multiallelic', 'Proportion of bases with "multiallelic" genotypes', 'multiallelic', 'D_xy across all blocks', 'd_xy', df_pair_dxy_vs_multiallelic)
-    #plotScatterObj.plot(alpha=0.8, points='Pairs')
 
     return (piA_fn, piB_fn, dxy_fn, fst_fn)
 
@@ -1398,7 +1375,7 @@ class ParameterObj(object):
         self.pairs_count = len(self.pair_ids)
         self.pair_idxs = [pair_idx for pair_idx, pair_id in enumerate(self.pair_ids)]
         self.pair_idx_by_pair_ids = {frozenset(pair_id): pair_idx for pair_idx, pair_id in zip(self.pair_idxs, self.pair_ids)}
-        print(self.pair_idx_by_pair_ids)
+        #print(self.pair_idx_by_pair_ids)
         self.pair_ids_by_pair_idx = {pair_idx: pair_id for pair_idx, pair_id in zip(self.pair_idxs, self.pair_ids)}
         self.sample_idxs_by_pair_idx = {pair_idx: (self.sample_idx_by_sample_id[pair_id[0]], self.sample_idx_by_sample_id[pair_id[1]]) for pair_idx, pair_id in zip(self.pair_idxs, self.pair_ids)}
         
@@ -1408,10 +1385,14 @@ class ParameterObj(object):
         self.block_bed_fix_f = "%s.block.fix.bed" % (self.outprefix)
         self.block_void_bed_f = "%s.block.void.bed" % (self.outprefix)
         self.block_summary_f = "%s.block.summary.tsv" % (self.outprefix)
+        self.sample_ids_f = "%s.sample_ids.tsv" % (self.outprefix)
+        self.pair_ids_f = "%s.pair_ids.tsv" % (self.outprefix)
         self.block_pairs_f = "%s.block.pairs.tsv" % (self.outprefix)
+        self.block_samples_f = "%s.block.samples.tsv" % (self.outprefix)
         self.bed_coverage_f = "%s.bed_coverage.txt" % (self.outprefix)
         self.variant_blocks_tsv_f = "%s.variant.blocks.tsv" % (self.outprefix)
         self.variant_pairs_tsv_f = "%s.variant.pairs.tsv" % (self.outprefix)
+        self.variant_pairs_sfs_tally_f = "%s.variant.pairs.sfs_tally.pickle" % (self.outprefix)
         self.window_coverage_tsv_f = "%s.window.coverage.tsv" % (self.outprefix)
         self.window_bed_f = "%s.window.bed" % (self.outprefix)
         self.window_variant_tsv_f = "%s.window.variant.tsv" % (self.outprefix)
@@ -1423,6 +1404,32 @@ class ParameterObj(object):
             for sample_id in sample_ids:
                 _population_by_sample_id[sample_id] = population_id
         return _population_by_sample_id
+
+    def write_sample_ids(self):
+        sample_ids_line = []
+        sample_ids_line.append("\t".join(["sample_idx", "sample_id", "population"]))
+        for sample_id in self.sample_ids:
+            sample_ids_line.append("\t".join([str(x) for x in [ \
+                self.sample_idx_by_sample_id[sample_id], \
+                sample_id, \
+                self.population_by_sample_id[sample_id] \
+                ]]) \
+            )
+        with open(self.sample_ids_f, 'w') as sample_ids_fh:
+            sample_ids_fh.write("\n".join(sample_ids_line))
+        return self.sample_ids_f
+
+    def write_pair_ids(self):
+        pair_ids_line = []
+        pair_ids_line.append("\t".join(["pair_idx", "pair_ids"]))
+        for pair_idx in self.pair_idxs:
+            pair_ids_line.append("\t".join([str(x) for x in [ \
+                pair_idx, \
+                ",".join(self.pair_ids_by_pair_idx[pair_idx])]]) \
+            )
+        with open(self.pair_ids_f, 'w') as pair_ids_fh:
+            pair_ids_fh.write("\n".join(pair_ids_line))
+        return self.pair_ids_f
 
 class RegionBatchObj(object):
     __slots__ = ["contig_id", "bedObjs", "idx"]
@@ -1597,6 +1604,26 @@ class BlockDataObj(object):
     def __len__(self):
         return len(self.blockObjs)
 
+    def write_profiles_by_pairs(self, parameterObj):
+        data_variant_blocks = []
+        data_variant_blocks.append("%s" % ("\t".join(["block_id", "pair_idx", "fixed", "hetA", "hetAB", "hetB", "multiallelic", "missing"])))
+
+        profileObjs_by_pair_idx = defaultdict(list)
+        for blockObj in self.blockObjs:
+            for pair_idx, profileObj in blockObj.profileObj_by_pair_idx.items():
+                #print("\t".join([str(x) for x in profileObj.tuple()]) )
+                profileObjs_by_pair_idx[pair_idx].append(profileObj)
+                data_variant_blocks.append("\t".join([ \
+                    blockObj.block_id, \
+                    str(pair_idx), \
+                    "\t".join([str(x) for x in profileObj.tuple()]) \
+                ]))
+        
+        fn_variant_blocks_tsv = parameterObj.variant_blocks_tsv_f
+        with open(fn_variant_blocks_tsv, 'w') as fh_variant_blocks_tsv:
+            fh_variant_blocks_tsv.write("\n".join(data_variant_blocks) + "\n")
+        return fn_variant_blocks_tsv, profileObjs_by_pair_idx
+
     def add_blockObjs(self, blockObjs):
         '''
         takes list of blockObjs
@@ -1614,18 +1641,27 @@ class BlockDataObj(object):
             for pair_idx in blockObj.pair_idxs:
                 self.idx_list_by_pair_idx[pair_idx].append(len(self.blockObjs) - 1)
         self.blockObj_idxs.append((start, len(self.blockObjs)))
-        #print(self.blockObj_idxs, len(self.blockObjs))
         
     def write_block_pairs(self, parameterObj):
         lines_block_pairs = []
-        lines_block_pairs.append("%s" % ("\t".join(["pair_idx", "block_count", "bases"])))
+        lines_block_pairs.append("%s" % ("\t".join(["pair_idx", "bases", "sample_ids"])))
+        lines_block_samples = []
+        lines_block_samples.append("%s" % ("\t".join(["sample_idx", "sample_id", "bases_mean", "bases_min", "bases_max"])))
+        blocks_by_sample_idx = defaultdict(list)
         for pair_idx, idx_list in self.idx_list_by_pair_idx.items():
-            blocks = len(idx_list)
             bases = (len(idx_list) * parameterObj.block_length)
-            lines_block_pairs.append("\t".join([str(x) for x in [pair_idx, blocks, bases]]))
+            sample_idxs = parameterObj.sample_idxs_by_pair_idx[pair_idx]
+            for sample_idx in sample_idxs:
+                blocks_by_sample_idx[sample_idx].append(bases)
+            lines_block_pairs.append("\t".join([str(x) for x in [pair_idx, bases, ",".join(parameterObj.pair_ids_by_pair_idx[pair_idx])]]))
+        for sample_idx, bases_list in sorted(blocks_by_sample_idx.items()):
+            lines_block_samples.append("\t".join([str(x) for x in [sample_idx, parameterObj.sample_id_by_sample_idx[sample_idx], "%.2f" % numpy.mean(bases_list), numpy.min(bases_list), numpy.max(bases_list)]]))
         fn_block_pairs = parameterObj.block_pairs_f
         with open(fn_block_pairs, 'w') as fh_block_pairs:
             fh_block_pairs.write("\n".join(lines_block_pairs))
+        fn_block_samples = parameterObj.block_samples_f
+        with open(fn_block_samples, 'w') as fh_block_samples:
+            fh_block_samples.write("\n".join(lines_block_samples))
         return fn_block_pairs
 
     def write_block_bed(self, parameterObj):
@@ -1635,12 +1671,10 @@ class BlockDataObj(object):
         void_lines_bed = []
         void_lines_bed.append(header_bed)
         for blockObj in sorted(self.blockObjs, key=lambda i: (i.contig_id, i.start)):
-            #print(blockObj)
             if blockObj.void:
                 for bed_tuple in blockObj.bed_tuples:
                     void_lines_bed.append("\t".join([str(x) for x in [bed_tuple[0], bed_tuple[1], bed_tuple[2], blockObj.block_id]]))
             else:
-                #print(blockObj.bed_tuples)
                 for bed_tuple in blockObj.bed_tuples:
                     lines_bed.append("\t".join([str(x) for x in [bed_tuple[0], bed_tuple[1], bed_tuple[2], blockObj.block_id]]))
         fn_bed = parameterObj.block_bed_f
@@ -1668,11 +1702,12 @@ class BlockDataObj(object):
     def write_variant_blocks(self, parameterObj):
         data_variant_blocks = []
         data_variant_blocks.append("%s" % ("\t".join(["block_id", "pair_idx", "fixed", "hetA", "hetAB", "hetB", "multiallelic", "missing"])))
-
+        mutuples_by_pair_idx = defaultdict(list)
         profileObjs_by_pair_idx = defaultdict(list)
         for blockObj in self.blockObjs:
             for pair_idx, profileObj in blockObj.profileObj_by_pair_idx.items():
                 #print("\t".join([str(x) for x in profileObj.tuple()]) )
+                mutuples_by_pair_idx[pair_idx].append(profileObj.mutuple())
                 profileObjs_by_pair_idx[pair_idx].append(profileObj)
                 data_variant_blocks.append("\t".join([ \
                     blockObj.block_id, \
@@ -1683,6 +1718,11 @@ class BlockDataObj(object):
         fn_variant_blocks_tsv = parameterObj.variant_blocks_tsv_f
         with open(fn_variant_blocks_tsv, 'w') as fh_variant_blocks_tsv:
             fh_variant_blocks_tsv.write("\n".join(data_variant_blocks) + "\n")
+        
+        sfs_by_pair_idx = {pair_idx : dict(Counter(mutuples_by_pair_idx[pair_idx])) for pair_idx in parameterObj.pair_idxs}
+        with open(parameterObj.variant_pairs_sfs_tally_f, "wb") as pickle_out:
+            pickle.dump(sfs_by_pair_idx, pickle_out)
+            #sfs_by_pair_idx = pickle.load(open(parameterObj.variant_pairs_sfs_tally_f, "rb"))
         return fn_variant_blocks_tsv, profileObjs_by_pair_idx
 
     def write_variant_summary(self, parameterObj, profileObjs_by_pair_idx):
@@ -1876,7 +1916,9 @@ class ProfileObj():
             return ProfileObj((0, 0, 0, 0, 0, 0, 0))
 
     def mutuple(self):
-        return (self.fixed, self.hetA, self.hetAB, self.hetB)
+        # This one gets written to SFStallies ...
+        return (self.hetA, self.fixed, self.hetB, self.hetAB) # 0.8.0
+        # return (self.fixed, self.hetA, self.hetAB, self.hetB) # 0.7.0
 
     def tuple(self):
         return (self.fixed, self.hetA, self.hetAB, self.hetB, self.missing, self.multiallelic)

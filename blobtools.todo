@@ -1,0 +1,20 @@
+BlockTools
+- which parts of the code are concerned with pops/ploidy
+- break out after variants/fixcoordinats with block tuples 
+	- windows later
+
+a) simplex likelihood method for finding optimal model (likelihood surface)
+	-> best estimate of background geneflow
+=> Checkpoint: write models, msprime script for simulations (confidence intervals for parameters) 
+=> evaluate using parametric bootstrap 
+
+b) then  
+=> Checkpoint: 
+
+c) Setup grid search across all windows to optimise the parameters using a likelihood gridsearch (maximising likelihood of
+
+- how to import math into sympy
+
+
+# population stuff
+- 
