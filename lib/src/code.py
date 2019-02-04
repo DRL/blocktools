@@ -1141,18 +1141,22 @@ def infer_configurations(params):
                 config = None
                 if -1 in genotype_set:
                     config = 'missing'
+                    print(gt_A, gt_B, config)
                 else:
                     if len(genotype_set) == 2:
                         config = CONFIG_BY_ZYGOSITY \
                                         [get_zygosity(gt_A)] \
                                         [get_zygosity(gt_B)]
+                        print(gt_A, gt_B, config)
                     elif len(genotype_set) > 2:
                         config = 'multiallelic'
+                        print(gt_A, gt_B, config)
                         #config = 'invariant'
-                    else:  # len(genotype_set) > 2:
+                    else:  # len(genotype_set) < 2:
                         pass
                 #print("gt_A =", gt_A, "gt_B =", gt_B, config)
-                profile_dict[config] = profile_dict.get(config, 0) + 1
+                if config:
+                    profile_dict[config] = profile_dict.get(config, 0) + 1
             #profileObj_by_pair_idx[pair_idx] = ProfileObj(list(profile_dict.values())) # as of Python 3.7, insertion order is maintained in dict.values() (https://docs.python.org/3.7/library/stdtypes.html#dict.values)
             profileObj_by_pair_idx[pair_idx] = ProfileObj((\
                                                 profile_dict.get('fixed', 0), \
@@ -1162,6 +1166,7 @@ def infer_configurations(params):
                                                 profile_dict.get('missing', 0), \
                                                 profile_dict.get('multiallelic', 0) \
                                                ))
+            print("counts", profileObj_by_pair_idx[pair_idx])
     return blockObj.block_id, profileObj_by_pair_idx
 
 def get_zygosity(gt):
