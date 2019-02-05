@@ -891,9 +891,16 @@ def load_blockDataObj(parameterObj):
         if block_id in bed_tuples_by_block_id: # only those in BED file are instanciated !!!
             pair_idxs = [int(pair_idx) for pair_idx in pair_idxs.split(",")]
             blockObj = BlockObj(block_id, parameterObj.block_length)
+            #print("#", blockObj)
             for bed_tuple in bed_tuples_by_block_id[block_id]:
-                bedObj = BedObj(bed_tuple[0], bed_tuple[1], bed_tuple[2], pair_idxs, length)
+                #bedObj = BedObj(bed_tuple[0], bed_tuple[1], bed_tuple[2], pair_idxs, length)
+                bedObj = BedObj(bed_tuple[0], bed_tuple[1], bed_tuple[2], pair_idxs, bed_tuple[2] - bed_tuple[1])
+                #print("=>", bedObj)
+                #_bed = blockObj.add_bedObj(bedObj, parameterObj)
                 blockObj.add_bedObj(bedObj, parameterObj)
+                #print("<=", _bed)
+                #print("==", blockObj)
+            #print("#", blockObj.bed_tuples)
             blockObj.profileObj_by_pair_idx = {pair_idx: ProfileObj((0, 0, 0, 0, 0, 0)) for pair_idx in pair_idxs}
             blockObjs.append(blockObj)
     blockDataObj = BlockDataObj(parameterObj) 
@@ -1097,11 +1104,21 @@ def fetch_variants(param):
     blockObj, parameterObj = param
     genotypes_by_sample_idx = defaultdict(list)
     sample_ids = [parameterObj.sample_id_by_sample_idx[sample_idx] for sample_idx in blockObj.sample_idxs]
+    #print("# Fetch:", sample_ids)
     vcf_reader = VCF(parameterObj.vcf_f, samples=sample_ids)
+    #print(vcf_reader.samples)
+    #vcf_reader.set_samples(sample_ids)
+    #print(vcf_reader.samples)
     for contig_id, start, end in blockObj.bed_tuples:
-        for record in vcf_reader('%s:%s-%s' % (blockObj.contig_id, blockObj.start, blockObj.end)):
+        #for record in vcf_reader('%s:%s-%s' % (blockObj.contig_id, blockObj.start, blockObj.end)): # BUG3
+        #print(contig_id, start, end)
+        for record in vcf_reader('%s:%s-%s' % (contig_id, start, end)):
+            #print(record.start, record.end)
             if record.is_snp:
-                for sample_id, genotype in zip(sample_ids, record.genotypes):
+                #print("# GTs:", record.genotypes)
+                #for sample_id, genotype in zip(sample_ids, record.genotypes):
+                for sample_id, genotype in zip(vcf_reader.samples, record.genotypes):
+                    #print(sample_id, genotype)
                     genotypes_by_sample_idx[parameterObj.sample_idx_by_sample_id[sample_id]].append([genotype[0], genotype[1]])
     return blockObj.block_id, genotypes_by_sample_idx
 
@@ -1130,33 +1147,31 @@ def infer_configurations(params):
     blockObj, parameterObj = params
     profileObj_by_pair_idx = {}
     #print(blockObj.block_id)
+    #print(blockObj.bed_tuples)
     if blockObj.genotypes_by_sample_idx:
-        #print(blockObj.genotypes_by_sample_idx)
         for pair_idx in blockObj.pair_idxs:
-            #print("PAIR:", pair_idx)
+            #print("# PAIR:", pair_idx)
             profile_dict = {} 
             sample_idx_A, sample_idx_B = parameterObj.sample_idxs_by_pair_idx[pair_idx]
+            #print("## GTs: ", len(blockObj.genotypes_by_sample_idx[sample_idx_A]), len(blockObj.genotypes_by_sample_idx[sample_idx_B]))
             for gt_A, gt_B in zip(blockObj.genotypes_by_sample_idx[sample_idx_A], blockObj.genotypes_by_sample_idx[sample_idx_B]):
                 genotype_set = set(gt_A + gt_B)
                 config = None
                 if -1 in genotype_set:
                     config = 'missing'
-                    print(gt_A, gt_B, config)
                 else:
                     if len(genotype_set) == 2:
                         config = CONFIG_BY_ZYGOSITY \
                                         [get_zygosity(gt_A)] \
                                         [get_zygosity(gt_B)]
-                        print(gt_A, gt_B, config)
                     elif len(genotype_set) > 2:
                         config = 'multiallelic'
-                        print(gt_A, gt_B, config)
                         #config = 'invariant'
                     else:  # len(genotype_set) < 2:
                         pass
-                #print("gt_A =", gt_A, "gt_B =", gt_B, config)
                 if config:
                     profile_dict[config] = profile_dict.get(config, 0) + 1
+                #print("A =", gt_A, "B =", gt_B, "=>", config)
             #profileObj_by_pair_idx[pair_idx] = ProfileObj(list(profile_dict.values())) # as of Python 3.7, insertion order is maintained in dict.values() (https://docs.python.org/3.7/library/stdtypes.html#dict.values)
             profileObj_by_pair_idx[pair_idx] = ProfileObj((\
                                                 profile_dict.get('fixed', 0), \
@@ -1166,7 +1181,7 @@ def infer_configurations(params):
                                                 profile_dict.get('missing', 0), \
                                                 profile_dict.get('multiallelic', 0) \
                                                ))
-            print("counts", profileObj_by_pair_idx[pair_idx])
+            #print("### Profile", profileObj_by_pair_idx[pair_idx])
     return blockObj.block_id, profileObj_by_pair_idx
 
 def get_zygosity(gt):
