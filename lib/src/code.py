@@ -1153,6 +1153,7 @@ def infer_configurations(params):
             #print("# PAIR:", pair_idx)
             profile_dict = {} 
             sample_idx_A, sample_idx_B = parameterObj.sample_idxs_by_pair_idx[pair_idx]
+            #print(parameterObj.sample_id_by_sample_idx[sample_idx_A], parameterObj.sample_id_by_sample_idx[sample_idx_B])
             #print("## GTs: ", len(blockObj.genotypes_by_sample_idx[sample_idx_A]), len(blockObj.genotypes_by_sample_idx[sample_idx_B]))
             for gt_A, gt_B in zip(blockObj.genotypes_by_sample_idx[sample_idx_A], blockObj.genotypes_by_sample_idx[sample_idx_B]):
                 genotype_set = set(gt_A + gt_B)
@@ -1392,13 +1393,14 @@ class ParameterObj(object):
         self.sample_id_by_sample_idx = {idx: sample_id for idx, sample_id in enumerate(self.sample_ids)}
         self.sample_idx_by_sample_id = {sample_id: idx for idx, sample_id in enumerate(self.sample_ids)}
         self.pair_ids = [(x) for x in product(*sorted(self.sample_ids_by_population.values()))]
+        #print(self.pair_ids)
         self.pairs_count = len(self.pair_ids)
         self.pair_idxs = [pair_idx for pair_idx, pair_id in enumerate(self.pair_ids)]
         self.pair_idx_by_pair_ids = {frozenset(pair_id): pair_idx for pair_idx, pair_id in zip(self.pair_idxs, self.pair_ids)}
         #print(self.pair_idx_by_pair_ids)
         self.pair_ids_by_pair_idx = {pair_idx: pair_id for pair_idx, pair_id in zip(self.pair_idxs, self.pair_ids)}
         self.sample_idxs_by_pair_idx = {pair_idx: (self.sample_idx_by_sample_id[pair_id[0]], self.sample_idx_by_sample_id[pair_id[1]]) for pair_idx, pair_id in zip(self.pair_idxs, self.pair_ids)}
-        
+        #print(self.sample_idxs_by_pair_idx)
         # Output files
         self.outprefix = args['--outprefix']
         self.block_bed_f = "%s.block.bed" % (self.outprefix)
@@ -1626,8 +1628,7 @@ class BlockDataObj(object):
 
     def write_profiles_by_pairs(self, parameterObj):
         data_variant_blocks = []
-        data_variant_blocks.append("%s" % ("\t".join(["block_id", "pair_idx", "fixed", "hetA", "hetAB", "hetB", "multiallelic", "missing"])))
-
+        data_variant_blocks.append("%s" % ("\t".join(["block_id", "pair_idx", "fixed", "hetA", "hetAB", "hetB", "missing", "multiallelic"])))
         profileObjs_by_pair_idx = defaultdict(list)
         for blockObj in self.blockObjs:
             for pair_idx, profileObj in blockObj.profileObj_by_pair_idx.items():
@@ -1721,7 +1722,7 @@ class BlockDataObj(object):
 
     def write_variant_blocks(self, parameterObj):
         data_variant_blocks = []
-        data_variant_blocks.append("%s" % ("\t".join(["block_id", "pair_idx", "fixed", "hetA", "hetAB", "hetB", "multiallelic", "missing"])))
+        data_variant_blocks.append("%s" % ("\t".join(["block_id", "pair_idx", "fixed", "hetA", "hetAB", "hetB", "missing", "multiallelic"])))
         mutuples_by_pair_idx = defaultdict(list)
         profileObjs_by_pair_idx = defaultdict(list)
         for blockObj in self.blockObjs:
@@ -1747,7 +1748,7 @@ class BlockDataObj(object):
 
     def write_variant_summary(self, parameterObj, profileObjs_by_pair_idx):
         data_variant_summary = []
-        data_variant_summary.append("%s" % ("\t".join(["pair_idx", "blocks", "bases", "fixed", "hetA", "hetAB", "hetB", "multiallelic", "missing", "pi_A", "pi_B", "d_xy", "f_st"])))
+        data_variant_summary.append("%s" % ("\t".join(["pair_idx", "blocks", "bases", "fixed", "hetA", "hetAB", "hetB", "missing", "multiallelic", "pi_A", "pi_B", "d_xy", "f_st"])))
         for pair_idx in parameterObj.pair_idxs:
             profileObjs = profileObjs_by_pair_idx[pair_idx]
             bases = len(profileObjs) * parameterObj.block_length
