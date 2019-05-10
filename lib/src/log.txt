@@ -1,0 +1,22 @@
+{'--help': False,
+ 'graph1': True}
+[#] sample_ids ['a', 'b']
+[#] haplotypes ['a', 'a', 'b', 'b']
+# [GRAPH]
+[0] ('a', 'a', 'b', 'b')
+[1] ('aa', 'b', 'b')
+[2] ('a', 'ab', 'b')
+[3] ('a', 'a', 'bb')
+[4] ('aab', 'b')
+[5] ('aa', 'bb')
+[6] ('ab', 'ab')
+[7] ('a', 'abb')
+[8] ('aabb',)
+# [PATHS]
+[0] [0, 1, 4, 8] weight=4
+[1] [0, 1, 5, 8] weight=3
+[2] [0, 2, 4, 8] weight=6
+[3] [0, 2, 6, 8] weight=6
+[4] [0, 2, 7, 8] weight=6
+[5] [0, 3, 5, 8] weight=3
+[6] [0, 3, 7, 8] weight=4

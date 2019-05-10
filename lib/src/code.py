@@ -5,9 +5,9 @@ import pandas
 import numpy
 import multiprocessing
 import psutil
+from contextlib import contextmanager
 from collections import OrderedDict, defaultdict, Counter, deque
 from tqdm import tqdm
-from contextlib import contextmanager
 from math import floor
 from cyvcf2 import VCF
 #from datetime import datetime
@@ -64,6 +64,22 @@ ax.lines[0].set_visible(False)
 > grep -wFf chr1_chr3.contigs.txt ../real/hmel.multiinter.samples_as_string.only_intergenic.bed > test.multiinter.samples_as_string.only_intergenic.bed
 
 [To Do]
+
+- change pi_A/B to pop name
+- Fst/dxy contig means if longer than x windows
+
+- write proper summary tables
+    - pair IDs
+    - piA/piB
+    - look at div/pi computations and how to list them
+- histogram of block/window Fst's
+
+
+
+
+
+
+
 
 - Plot Fst of pairs in B and AllCallable
 - calculate/save/print Pi for each sample  
@@ -1253,7 +1269,6 @@ def make_windows(parameterObj, blockDataObj):
                 _buffer += parameterObj.window_overlap
         else:
             params.append((parameterObj, blockDataObj.blockObjs[start:end]))
-    print(memory_usage_psutil())
     if parameterObj.threads < 2:
         with tqdm(total=len(params), desc="[%] ", ncols=200, unit_scale=True) as pbar:
             for param in params:
@@ -1381,9 +1396,13 @@ class ParameterObj(object):
         # Samples/Pops
 
         self.sample_ids_by_population = args['--populations']
+        print("sample_ids_by_population", self.sample_ids_by_population)
         self.population_by_population_idx = OrderedDict({idx: population_id for idx, population_id in enumerate(natsorted(self.sample_ids_by_population.keys()))})
+        print("population_by_population_idx", self.population_by_population_idx)
         self.population_by_sample_id = self.get_population_by_sample_id()
+        print("population_by_sample_id", self.population_by_sample_id)
         self.colour_by_population = {population : colour for population, colour in zip(args['--populations'], ['gold', 'purple'])}
+        print("colour_by_population", self.colour_by_population)
         self.colour_default = 'purple'
         self.pops_count = len(self.sample_ids_by_population)
         if not self.pops_count == 2:
@@ -1393,14 +1412,16 @@ class ParameterObj(object):
         self.sample_id_by_sample_idx = {idx: sample_id for idx, sample_id in enumerate(self.sample_ids)}
         self.sample_idx_by_sample_id = {sample_id: idx for idx, sample_id in enumerate(self.sample_ids)}
         self.pair_ids = [(x) for x in product(*sorted(self.sample_ids_by_population.values()))]
-        #print(self.pair_ids)
+        print("pair_ids", self.pair_ids)
         self.pairs_count = len(self.pair_ids)
         self.pair_idxs = [pair_idx for pair_idx, pair_id in enumerate(self.pair_ids)]
+        print("pair_idxs", self.pair_idxs)
         self.pair_idx_by_pair_ids = {frozenset(pair_id): pair_idx for pair_idx, pair_id in zip(self.pair_idxs, self.pair_ids)}
-        #print(self.pair_idx_by_pair_ids)
+        print("pair_idx_by_pair_ids", self.pair_idx_by_pair_ids)
         self.pair_ids_by_pair_idx = {pair_idx: pair_id for pair_idx, pair_id in zip(self.pair_idxs, self.pair_ids)}
+        print("pair_ids_by_pair_idx", self.pair_ids_by_pair_idx)
         self.sample_idxs_by_pair_idx = {pair_idx: (self.sample_idx_by_sample_id[pair_id[0]], self.sample_idx_by_sample_id[pair_id[1]]) for pair_idx, pair_id in zip(self.pair_idxs, self.pair_ids)}
-        #print(self.sample_idxs_by_pair_idx)
+        print("sample_idxs_by_pair_idx", self.sample_idxs_by_pair_idx)
         # Output files
         self.outprefix = args['--outprefix']
         self.block_bed_f = "%s.block.bed" % (self.outprefix)
@@ -1415,6 +1436,7 @@ class ParameterObj(object):
         self.variant_blocks_tsv_f = "%s.variant.blocks.tsv" % (self.outprefix)
         self.variant_pairs_tsv_f = "%s.variant.pairs.tsv" % (self.outprefix)
         self.variant_pairs_sfs_tally_f = "%s.variant.pairs.sfs_tally.pickle" % (self.outprefix)
+        self.variant_total_sfs_tally_f = "%s.variant.total.sfs_tally.pickle" % (self.outprefix)
         self.window_coverage_tsv_f = "%s.window.coverage.tsv" % (self.outprefix)
         self.window_bed_f = "%s.window.bed" % (self.outprefix)
         self.window_variant_tsv_f = "%s.window.variant.tsv" % (self.outprefix)
@@ -1743,7 +1765,9 @@ class BlockDataObj(object):
         sfs_by_pair_idx = {pair_idx : dict(Counter(mutuples_by_pair_idx[pair_idx])) for pair_idx in parameterObj.pair_idxs}
         with open(parameterObj.variant_pairs_sfs_tally_f, "wb") as pickle_out:
             pickle.dump(sfs_by_pair_idx, pickle_out)
-            #sfs_by_pair_idx = pickle.load(open(parameterObj.variant_pairs_sfs_tally_f, "rb"))
+        sfs_total = dict(sum([Counter(mutuples_by_pair_idx[pair_idx])for pair_idx in parameterObj.pair_idxs]))
+        with open(parameterObj.variant_total_sfs_tally_f, "wb") as pickle_out:
+            pickle.dump(sfs_total, pickle_out)
         return fn_variant_blocks_tsv, profileObjs_by_pair_idx
 
     def write_variant_summary(self, parameterObj, profileObjs_by_pair_idx):
