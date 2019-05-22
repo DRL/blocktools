@@ -1869,8 +1869,9 @@ class WindowDataObj(object):
         #with open(fn_window_sfs_tally, 'w') as fh_window_sfs_tally:
         #    fh_window_sfs_tally.write("\n".join(data_window_sfs_tally))
         #numpy.save(fn_window_sfs_tally, data_window_sfs_tally)
-        with open(fn_window_sfs_tally, "wb") as pickle_out:
-            pickle.dump(data_window_sfs_tally, pickle_out)
+        print(fn_window_sfs_tally)
+        with open(fn_window_sfs_tally, "wb") as fh_window_sfs_tally:
+            pickle.dump(data_window_sfs_tally, fh_window_sfs_tally)
         with open(fn_window_metrics_tsv, 'w') as fh_window_metrics_tsv:
             fh_window_metrics_tsv.write("\n".join(data_window_metrics_tsv))
         with open(fn_window_bed, 'w') as fh_window_bed:
