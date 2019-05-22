@@ -11,6 +11,7 @@ blocktools
         windows                Makes windows of blocks based on profile.tsv and    
         plot                   Makes plots
         compare                Compare two runs
+        unpickle               unpickle
 
 
     Options:
@@ -48,6 +49,9 @@ def main():
         elif args['<module>'] == 'compare':
             import lib.commands.compare as compare
             compare.main()
+        elif args['<module>'] == 'unpickle':
+            import lib.commands.unpickle as unpickle
+            unpickle.main()
         else:
             sys.exit("%r is not a blocktools module. See 'blocktools -help'." % args['<module>'])
     except KeyboardInterrupt:

@@ -757,10 +757,11 @@ def parse_multibed_f(parameterObj, sequence_OrdDict):
         pair_idx_by_pair_ids=parameterObj.pair_idx_by_pair_ids\
         )
     # Drop intervals that don't affect pairs
-    # df = df.dropna()
+    df = df.dropna()
     
     # compute distance to next interval
     df['distance'] = numpy.where((df['chrom'] == df['chrom'].shift(-1)), df['start'].shift(-1) - df['end'], numpy.nan)
+    print(df)
     #spanObj = SpanObj('raw')
     idx = 0
     regionBatchObjs = deque()
@@ -768,24 +769,24 @@ def parse_multibed_f(parameterObj, sequence_OrdDict):
     coverageObj = CoverageObj()
     coverageObj.set_genome_length(sequence_OrdDict) # better: record BED intervals for each contig
     for chrom, start, end, samples, length, sample_idxs, pair_idxs, distance in tqdm(df.values.tolist(), total=len(df.index), desc="[%] ", ncols=200):
-        if not pair_idxs is numpy.nan:
-            pair_count = len(pair_idxs)
-            coverageObj.add_pair_region(pair_count, length)
-            if length >= parameterObj.block_length:
-                coverageObj.add_pair_region_block_size(pair_count, int(length / parameterObj.block_length) * parameterObj.block_length)
-            if length >= parameterObj.min_interval_len:
-                bedObj = BedObj(chrom, start, end, pair_idxs, length) 
-                if not regionBatchObj.contig_id:
+        #if not numpy.isnan(pair_idxs):
+        pair_count = len(pair_idxs)
+        coverageObj.add_pair_region(pair_count, length)
+        if length >= parameterObj.block_length:
+            coverageObj.add_pair_region_block_size(pair_count, int(length / parameterObj.block_length) * parameterObj.block_length)
+        if length >= parameterObj.min_interval_len:
+            bedObj = BedObj(chrom, start, end, pair_idxs, length) 
+            if not regionBatchObj.contig_id:
+                regionBatchObj.add_bedObj_to_batch(bedObj)
+            else:
+                if chrom == regionBatchObj.contig_id and not numpy.isnan(distance) and int(distance) <= parameterObj.max_interval_distance:
                     regionBatchObj.add_bedObj_to_batch(bedObj)
                 else:
-                    if chrom == regionBatchObj.contig_id and not numpy.isnan(distance) and int(distance) <= parameterObj.max_interval_distance:
-                        regionBatchObj.add_bedObj_to_batch(bedObj)
-                    else:
-                        regionBatchObjs.append(regionBatchObj)
-                        idx += 1
-                        regionBatchObj = RegionBatchObj(idx)
-                        regionBatchObj.add_bedObj_to_batch(bedObj)
-                #if numpy.isnan(distance) or int(distance) > parameterObj.max_interval_distance:
+                    regionBatchObjs.append(regionBatchObj)
+                    idx += 1
+                    regionBatchObj = RegionBatchObj(idx)
+                    regionBatchObj.add_bedObj_to_batch(bedObj)
+            #if numpy.isnan(distance) or int(distance) > parameterObj.max_interval_distance:
         
         sample_count = len(sample_idxs)
         coverageObj.add_sample_region(sample_count, length)
@@ -928,8 +929,7 @@ def generate_pair_idxs(sample_string, **kwargs):
     pair_idxs = frozenset(filter(lambda x: x >= 0, [kwargs['pair_idx_by_pair_ids'].get(frozenset(x), -1) for x in combinations(sample_string.split(","), kwargs['pops_count'])])) 
     if pair_idxs:
         return pair_idxs
-    else:
-        return numpy.nan
+    return numpy.nan
 
 def generate_sample_idxs(sample_string, **kwargs):
     sample_idxs = frozenset([kwargs['sample_idx_by_sample_id'][sample_id] for sample_id in sample_string.split(",") if sample_id in kwargs['sample_idx_by_sample_id']])
@@ -1440,7 +1440,7 @@ class ParameterObj(object):
         self.window_coverage_tsv_f = "%s.window.coverage.tsv" % (self.outprefix)
         self.window_bed_f = "%s.window.bed" % (self.outprefix)
         self.window_variant_tsv_f = "%s.window.variant.tsv" % (self.outprefix)
-        self.window_sfs_tally_f = "%s.window.sfs_tally.npy" % (self.outprefix)
+        self.window_sfs_tally_f = "%s.window.sfs_tally.pickle" % (self.outprefix)
 
     def get_population_by_sample_id(self):
         _population_by_sample_id = {}
@@ -1765,7 +1765,8 @@ class BlockDataObj(object):
         sfs_by_pair_idx = {pair_idx : dict(Counter(mutuples_by_pair_idx[pair_idx])) for pair_idx in parameterObj.pair_idxs}
         with open(parameterObj.variant_pairs_sfs_tally_f, "wb") as pickle_out:
             pickle.dump(sfs_by_pair_idx, pickle_out)
-        sfs_total = dict(sum([Counter(mutuples_by_pair_idx[pair_idx])for pair_idx in parameterObj.pair_idxs]))
+        sfs_total = dict(sum([Counter(mutuples_by_pair_idx[pair_idx]) for pair_idx in parameterObj.pair_idxs], Counter()))
+        print(sfs_total)
         with open(parameterObj.variant_total_sfs_tally_f, "wb") as pickle_out:
             pickle.dump(sfs_total, pickle_out)
         return fn_variant_blocks_tsv, profileObjs_by_pair_idx
@@ -1867,7 +1868,9 @@ class WindowDataObj(object):
             ]))
         #with open(fn_window_sfs_tally, 'w') as fh_window_sfs_tally:
         #    fh_window_sfs_tally.write("\n".join(data_window_sfs_tally))
-        numpy.save(fn_window_sfs_tally, data_window_sfs_tally)
+        #numpy.save(fn_window_sfs_tally, data_window_sfs_tally)
+        with open(fn_window_sfs_tally, "wb") as pickle_out:
+            pickle.dump(data_window_sfs_tally, pickle_out)
         with open(fn_window_metrics_tsv, 'w') as fh_window_metrics_tsv:
             fh_window_metrics_tsv.write("\n".join(data_window_metrics_tsv))
         with open(fn_window_bed, 'w') as fh_window_bed:

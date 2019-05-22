@@ -1,0 +1,6 @@
+
+/ceph/software/blocktools/blocktools/blocktools blocks -y blocktools.HMEL.B.64.intergenic.yaml -t 60 > test.log && 
+/ceph/software/blocktools/blocktools/blocktools variants -y blocktools.HMEL.B.64.intergenic.yaml -t 60 >> test.log && 
+/ceph/software/blocktools/blocktools/blocktools fixcoordinates -y blocktools.HMEL.B.64.intergenic.yaml -c Hmel2.chromTransfers.2016_09_20.txt -t 60 >> test.log && 
+/ceph/software/blocktools/blocktools/blocktools windows -b output/blocktools.HMEL.B.64.intergenic.block.fix.bed -y blocktools.HMEL.B.64.intergenic.yaml -t 60 >> test.log && 
+/ceph/software/blocktools/blocktools/blocktools plot -y blocktools.HMEL.B.64.intergenic.yaml -g hmel.autosomes.new_coordinates.genomefile >> test.log
